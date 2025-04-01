@@ -72,20 +72,20 @@ module.exports = NodeHelper.create({
   
   loadFamilyImages() {
     // Load family images from the Pictures folder
-    const picturesPath = path.join(__dirname, "python", "Pictures");
+    const picturesPath = path.join(__dirname, "Pictures");
     if (!fs.existsSync(picturesPath)) {
       console.log("Pictures directory not found, creating it");
       fs.mkdirSync(picturesPath, { recursive: true });
       return;
     }
-
+  
     const files = fs.readdirSync(picturesPath)
       .filter(f => f.toLowerCase().endsWith(".jpg") || 
                    f.toLowerCase().endsWith(".jpeg") || 
                    f.toLowerCase().endsWith(".png") ||
                    f.toLowerCase().endsWith(".gif"))
-      .map(f => `modules/MMM-PictureVerse/python/Pictures/${f}`);
-
+      .map(f => `modules/MMM-PictureVerse/Pictures/${f}`);
+  
     console.log(`Found ${files.length} family images`);
     this.sendSocketNotification("FAMILY_IMAGES", files);
   },
