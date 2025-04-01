@@ -148,7 +148,7 @@ Add the module to your `config/config.js` file:
     backgroundStyle: "blur",    // Options: "blur", "color", or "none"
     backgroundColor: "#000000", // Used when backgroundStyle is "color"
     blur: 8,                    // Blur amount in pixels when using "blur" style
-    transition: 1000            // Transition time between images (ms)
+    transition: 1000,            // Transition time between images (ms)
     sequential: false              // Whether to cycle images sequentially or randomly
 
   }
