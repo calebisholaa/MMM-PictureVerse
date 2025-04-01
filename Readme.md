@@ -34,11 +34,13 @@ A MagicMirror² module that displays:
    sudo apt update
    sudo apt install python3-venv
    
+   # Make the scripts executable
+   chmod +x *.sh
+   
    # Install module dependencies and set up Python virtual environment
    npm install
    
-   # Make the scripts executable
-   chmod +x *.sh
+ 
    ```
 
 The installation process will automatically:
