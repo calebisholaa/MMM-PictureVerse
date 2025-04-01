@@ -4,9 +4,9 @@
   "description": "Display Bible verses, family photos from Dropbox, and Blink camera motion-triggered clips.",
   "main": "MMM-PictureVerse.js",
   "scripts": {
-    "setup-blink": "python3 python/BlinkSetup.py",
-    "sync-dropbox": "python3 python/Dropbox.py",
-    "postinstall": "npm install chokidar"
+    "setup-blink": "./setup-blink.sh",
+    "sync-dropbox": "./sync-dropbox.sh",
+    "postinstall": "npm install chokidar && ./setup-venv.sh"
   },
   "dependencies": {
     "chokidar": "^3.5.3"

@@ -6,10 +6,6 @@ A MagicMirror² module that displays:
 - Blink security camera feeds (shown once per hour)
 - Motion detection video clips from Blink cameras (shown immediately when detected)
 
-## Screenshots
-
-*Your magic mirror will display family photos most of the time, with verses and camera feeds at scheduled intervals*
-
 ## Features
 
 - **Family Photos**: Connect to your Dropbox account to display your family photos
@@ -33,25 +29,22 @@ A MagicMirror² module that displays:
 3. Install dependencies:
    ```bash
    cd MMM-PictureVerse
-   npm install
-   ```
-
-4. Install Python dependencies (choose one method):
-
-   **Method A: Using apt (recommended for Raspberry Pi)**
-   ```bash
-   sudo apt update
-   sudo apt install python3-dropbox python3-aiohttp
    
-   # Install blinkpy separately since it might not be in apt
-   pip3 install --user blinkpy
+   # Make sure Python virtual environment package is installed
+   sudo apt update
+   sudo apt install python3-venv
+   
+   # Install module dependencies and set up Python virtual environment
+   npm install
+   
+   # Make the scripts executable
+   chmod +x *.sh
    ```
 
-   **Method B: Using pip with --user flag**
-   ```bash
-   pip3 install --user dropbox blinkpy aiohttp
-   ```
-
+The installation process will automatically:
+- Install Node.js dependencies
+- Create a Python virtual environment
+- Install the required Python packages (dropbox, blinkpy, aiohttp)
 
 ## Setting Up Dropbox
 
@@ -172,24 +165,12 @@ The module will display your photos from Dropbox as the main content, with Bible
   - Check your Blink credentials
   - Ensure your Blink cameras are online
 
-- **Photos not updating**:
-  - Check that the module has proper permissions
-  - Restart MagicMirror
-  - Try a manual sync: `npm run sync-dropbox`
-
-## Required Dependencies
-
-This module requires:
-- Python 3
-- Node.js
-
-Python libraries (installed automatically):
-- dropbox
-- blinkpy
-- aiohttp
-
-Node.js libraries (installed automatically):
-- chokidar
+- **Python issues**:
+  - If you encounter Python-related errors, try reinstalling the virtual environment:
+    ```bash
+    rm -rf python/venv
+    ./setup-venv.sh
+    ```
 
 ## License
 

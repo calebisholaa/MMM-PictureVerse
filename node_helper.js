@@ -131,7 +131,9 @@ module.exports = NodeHelper.create({
 
     if (notification === "REQUEST_BLINK") {
       const script = path.join(__dirname, "python", "Blink.py");
-      exec(`python3 ${script}`, (error, stdout, stderr) => {
+      const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+      
+      exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
         if (error) {
           console.error(`Error executing Blink.py: ${error}`);
           console.error(stderr);
@@ -169,9 +171,11 @@ module.exports = NodeHelper.create({
 
   syncDropbox(callback) {
     const script = path.join(__dirname, "python", "Dropbox.py");
+    const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+    
     console.log("Syncing Dropbox images...");
     
-    exec(`python3 ${script}`, (error, stdout, stderr) => {
+    exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
       if (error) {
         console.error(`Error executing Dropbox.py: ${error}`);
         console.error(stderr);
