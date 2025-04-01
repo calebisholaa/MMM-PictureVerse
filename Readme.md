@@ -13,6 +13,7 @@ A MagicMirror² module that displays:
 - **Security Cameras**: Displays feeds from your Blink security cameras once per hour
 - **Motion Detection**: Immediately shows video clips when motion is detected by your cameras
 - **Automatic Updates**: New photos added to Dropbox appear automatically on your mirror
+- **Dynamic Scaling**: Automatically sizes images to fit your display perfectly
 
 ## Installation
 
@@ -39,8 +40,6 @@ A MagicMirror² module that displays:
    
    # Install module dependencies and set up Python virtual environment
    npm install
-   
- 
    ```
 
 The installation process will automatically:
@@ -65,17 +64,20 @@ To display photos from your Dropbox account:
    - Click "Generate" under "Generated access token"
    - Copy the access token
 
-3. Create a configuration file:
+3. Create a configuration file using the template:
    - In your module directory, navigate to the python folder:
      ```bash
      cd ~/MagicMirror/modules/MMM-PictureVerse/python/
      ```
-   - Create a file named `dropbox_config.json`:
+   - Copy the template to create your configuration file:
      ```bash
      cp dropbox_config_template.json dropbox_config.json
+     ```
+   - Edit the new configuration file:
+     ```bash
      nano dropbox_config.json
      ```
-   - Add the following content, replacing the values with your own:
+   - Update the content with your information:
      ```json
      {
        "access_token": "YOUR_DROPBOX_ACCESS_TOKEN",
@@ -90,6 +92,26 @@ To display photos from your Dropbox account:
    cd ~/MagicMirror/modules/MMM-PictureVerse/
    npm run sync-dropbox
    ```
+
+## Setting Up Blink Cameras (Optional)
+
+If you have Blink cameras and want to display their feeds:
+
+1. Run the Blink setup script:
+   ```bash
+   npm run setup-blink
+   ```
+
+2. Follow the prompts to enter your Blink credentials and 2FA code
+
+## How It Works
+
+The module will display your photos from Dropbox as the main content, with Bible verses and camera feeds shown at configured intervals:
+
+- **Photos**: Your Dropbox photos are the primary display, rotating at your configured interval (default: 30 seconds)
+- **Verses**: A Bible verse will be shown once per hour for 1 minute
+- **Cameras**: Security camera feeds are shown once per hour for 1 minute
+- **Motion**: Motion detection clips interrupt the regular display when detected
 
 ## Module Configuration
 
@@ -119,30 +141,40 @@ Add the module to your `config/config.js` file:
     motionClipDisplayTime: 30000,
     
     // Whether to enable Blink camera integration (default: true)
-    showBlink: true
+    showBlink: true,
+    
+    // Image display settings
+    opacity: 0.9,
+    backgroundStyle: "blur",    // Options: "blur", "color", or "none"
+    backgroundColor: "#000000", // Used when backgroundStyle is "color"
+    blur: 8,                    // Blur amount in pixels when using "blur" style
+    transition: 1000            // Transition time between images (ms)
   }
 }
 ```
 
-## Setting Up Blink Cameras (Optional)
+## Display Settings
 
-If you have Blink cameras and want to display their feeds:
+For the best photo viewing experience, use the `fullscreen` position. In fullscreen mode:
 
-1. Run the Blink setup script:
-   ```bash
-   npm run setup-blink
-   ```
+- Images automatically scale to fill the screen while maintaining aspect ratio
+- Smooth transitions between images
+- Custom background options
 
-2. Follow the prompts to enter your Blink credentials and 2FA code
+### Background Options
 
-## How It Works
+When using fullscreen mode, you can customize the background appearance:
 
-The module will display your photos from Dropbox as the main content, with Bible verses and camera feeds shown at configured intervals:
+- **backgroundStyle**: Choose from:
+  - **"blur"**: Creates a blurred version of the current image as background (elegant effect)
+  - **"color"**: Uses a solid color as background (good for higher contrast)
+  - **"none"**: No special background (just shows the image)
 
-- **Photos**: Your Dropbox photos are the primary display, rotating at your configured interval (default: 30 seconds)
-- **Verses**: A Bible verse will be shown once per hour for 1 minute
-- **Cameras**: Security camera feeds are shown once per hour for 1 minute
-- **Motion**: Motion detection clips interrupt the regular display when detected
+- **backgroundColor**: Any valid CSS color (used when backgroundStyle is "color")
+- **blur**: Amount of blur in pixels (used when backgroundStyle is "blur")
+- **transition**: Duration of fade transitions between images (in milliseconds)
+
+
 
 ### Automatic Updates
 

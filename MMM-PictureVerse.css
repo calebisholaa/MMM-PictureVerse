@@ -48,6 +48,16 @@
   margin-top: 0.5em;
 }
 
+/* Background image for fullscreen mode */
+.background-image {
+  position: absolute;
+  background-position: center;
+  background-repeat: no-repeat;
+  height: 100%;
+  width: 100%;
+  background-size: cover;
+}
+
 /* Styling for timestamp overlays */
 .timestamp {
   position: absolute;

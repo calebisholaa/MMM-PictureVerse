@@ -9,7 +9,16 @@ Module.register("MMM-PictureVerse", {
     // Other settings
     prioritizeMotionClips: true,   // Interrupt normal flow to show motion clips
     motionClipDisplayTime: 30000,  // How long to show motion clips (30 sec)
-    showBlink: true                // Enable blink camera integration
+    showBlink: true,               // Enable blink camera integration
+    
+    // Image display settings
+    opacity: 0.9,                  // Image opacity
+    maxWidth: "100%",              // Maximum width for non-fullscreen
+    maxHeight: "100%",             // Maximum height for non-fullscreen
+    backgroundStyle: "blur",       // Background style: "blur", "color", or "none"
+    backgroundColor: "#000000",    // Background color when using "color" style
+    blur: 8,                       // Background blur amount (for fullscreen)
+    transition: 1000               // Transition time between images (ms)
   },
 
   start() {
@@ -26,6 +35,9 @@ Module.register("MMM-PictureVerse", {
     this.lastCameraTime = 0;
     this.showingMotion = false;
     this.motionTimer = null;
+    this.wrapper = null;
+    this.fullscreen = false;
+    this.timer = null;
 
     // Request initial data
     this.sendSocketNotification("REQUEST_VERSE");
@@ -44,6 +56,15 @@ Module.register("MMM-PictureVerse", {
     this.scheduledTimer = setInterval(() => {
       this.checkScheduledEvents();
     }, 60000);
+    
+    // Check if we're in fullscreen mode
+    if (this.data.position.toLowerCase().startsWith("fullscreen")) {
+      this.fullscreen = true;
+    }
+  },
+
+  getStyles() {
+    return ["MMM-PictureVerse.css"];
   },
 
   checkScheduledEvents() {
@@ -161,7 +182,69 @@ Module.register("MMM-PictureVerse", {
     }
   },
 
+  // Image scaling function (from MMM-ImagesPhotos)
+  scaleImage(srcwidth, srcheight, targetwidth, targetheight, fLetterBox) {
+    const result = { width: 0, height: 0, fScaleToTargetWidth: true };
+
+    if (
+      srcwidth <= 0 ||
+      srcheight <= 0 ||
+      targetwidth <= 0 ||
+      targetheight <= 0
+    ) {
+      return result;
+    }
+
+    // Scale to the target width
+    const scaleX1 = targetwidth;
+    const scaleY1 = (srcheight * targetwidth) / srcwidth;
+
+    // Scale to the target height
+    const scaleX2 = (srcwidth * targetheight) / srcheight;
+    const scaleY2 = targetheight;
+
+    // Now figure out which one we should use
+    let fScaleOnWidth = scaleX2 > targetwidth;
+    if (fScaleOnWidth) {
+      fScaleOnWidth = fLetterBox;
+    } else {
+      fScaleOnWidth = !fLetterBox;
+    }
+
+    if (fScaleOnWidth) {
+      result.width = Math.floor(scaleX1);
+      result.height = Math.floor(scaleY1);
+      result.fScaleToTargetWidth = true;
+    } else {
+      result.width = Math.floor(scaleX2);
+      result.height = Math.floor(scaleY2);
+      result.fScaleToTargetWidth = false;
+    }
+    result.targetleft = Math.floor((targetwidth - result.width) / 2);
+    result.targettop = Math.floor((targetheight - result.height) / 2);
+
+    return result;
+  },
+
+  startTimer() {
+    if (this.timer !== null) {
+      clearTimeout(this.timer);
+    }
+    
+    const self = this;
+    self.timer = setTimeout(() => {
+      self.updateDom(self.config.transition);
+    }, this.config.familyInterval);
+  },
+
   getDom() {
+    if (this.fullscreen && this.currentDisplay === "family") {
+      return this.getFullscreenDom();
+    }
+    return this.getRegularDom();
+  },
+
+  getRegularDom() {
     const wrapper = document.createElement("div");
     wrapper.className = "blessed-center";
 
@@ -180,7 +263,12 @@ Module.register("MMM-PictureVerse", {
           const img = document.createElement("img");
           img.src = this.familyImages[this.familyIndex];
           img.className = "blessed-image visible";
+          img.style.opacity = this.config.opacity;
+          img.style.maxWidth = this.config.maxWidth;
+          img.style.maxHeight = this.config.maxHeight;
+          img.style.transition = `opacity ${this.config.transition/1000}s`;
           wrapper.appendChild(img);
+          this.startTimer();
         } else {
           wrapper.innerHTML = "No family images available";
         }
@@ -193,7 +281,7 @@ Module.register("MMM-PictureVerse", {
           
           const img = document.createElement("img");
           img.src = this.latestImage;
-          img.className = "blessed-image";
+          img.className = "blessed-image visible";
           container.appendChild(img);
           
           wrapper.appendChild(container);
@@ -231,5 +319,120 @@ Module.register("MMM-PictureVerse", {
     }
 
     return wrapper;
+  },
+
+  getFullscreenDom() {
+    const self = this;
+    
+    // If wrapper div not yet created
+    if (this.wrapper === null) {
+      // Create it once, try to reduce image flash on change
+      this.wrapper = document.createElement("div");
+      this.bk = document.createElement("div");
+      this.bk.className = "background-image";
+      
+      // Set up background style
+      if (this.config.backgroundStyle === "blur") {
+        this.bk.style.filter = `blur(${this.config.blur}px)`;
+        this.bk.style["-webkit-filter"] = `blur(${this.config.blur}px)`;
+      } else if (this.config.backgroundStyle === "color") {
+        this.bk.style.backgroundColor = this.config.backgroundColor;
+      }
+      
+      this.wrapper.appendChild(this.bk);
+      this.fg = document.createElement("div");
+      this.wrapper.appendChild(this.fg);
+    }
+    
+    if (this.familyImages.length > 0) {
+      // Get the size of the margin, if any, we want to be full screen
+      const m = window
+        .getComputedStyle(document.body, null)
+        .getPropertyValue("margin-top");
+      
+      // Set the style for the containing div
+      this.fg.style.border = "none";
+      this.fg.style.margin = "0px";
+
+      // Get the current family image
+      const imageSrc = this.familyImages[this.familyIndex];
+      let img = null;
+      
+      if (imageSrc) {
+        // Create img tag element
+        img = document.createElement("img");
+
+        // Set default position, corrected in onload handler
+        img.style.left = `${0}px`;
+        img.style.top = document.body.clientHeight + parseInt(m, 10) * 2;
+        img.style.position = "relative";
+        img.style.opacity = 0;
+        img.style.transition = `opacity ${this.config.transition/1000}s`;
+
+        img.src = imageSrc;
+        
+        // Append this image to the div
+        this.fg.appendChild(img);
+
+        // Set the image load error handler
+        img.onerror = (evt) => {
+          const eventImage = evt.currentTarget;
+          console.error(`Image load failed: ${eventImage.src}`);
+          // Skip to next image
+          this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+          this.updateDom();
+        };
+        
+        // Set the onload event handler
+        img.onload = (evt) => {
+          // Get the image of the event
+          const eventImage = evt.currentTarget;
+          
+          // What's the size of this image and its parent
+          const w = eventImage.width;
+          const h = eventImage.height;
+          const tw = document.body.clientWidth + parseInt(m, 10) * 2;
+          const th = document.body.clientHeight + parseInt(m, 10) * 2;
+
+          // Compute the new size and offsets
+          const result = self.scaleImage(w, h, tw, th, true);
+
+          // Adjust the image size
+          eventImage.width = result.width;
+          eventImage.height = result.height;
+
+          // Adjust the image position
+          eventImage.style.left = `${result.targetleft}px`;
+          eventImage.style.top = `${result.targettop}px`;
+
+          // If another image was already displayed
+          const c = self.fg.childElementCount;
+          if (c > 1) {
+            for (let i = 0; i < c - 1; i++) {
+              // Hide it
+              self.fg.firstChild.style.opacity = 0;
+              // Remove the image element from the div
+              self.fg.removeChild(self.fg.firstChild);
+            }
+          }
+          
+          // Show the current image
+          self.fg.firstChild.style.opacity = self.config.opacity;
+
+          // Set background based on chosen style
+          if (self.config.backgroundStyle === "blur") {
+            self.bk.style.backgroundImage = `url(${self.fg.firstChild.src})`;
+          } else if (self.config.backgroundStyle === "color") {
+            self.bk.style.backgroundImage = "none";
+            self.bk.style.backgroundColor = self.config.backgroundColor;
+          }
+          
+          // Start timer for next image
+          self.startTimer();
+        };
+      }
+    }
+    
+    return this.wrapper;
   }
 });
