@@ -23,7 +23,7 @@ A MagicMirror² module that displays:
 
 2. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/MMM-PictureVerse.git
+   git clone https://github.com/calebisholaa/MMM-PictureVerse.git
    ```
 
 3. Install dependencies:
