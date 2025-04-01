@@ -23,7 +23,7 @@ async def fetch_blink_media(session):
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
     for name, cam in blink.cameras.items():
-        print(f"\n📸 Camera: {name}")
+        print(f"\nCamera: {name}")
 
         await cam.snap_picture()
         await asyncio.sleep(5)  # allow Blink to process the image
@@ -34,13 +34,13 @@ async def fetch_blink_media(session):
         vid_path = os.path.join(MEDIA_FOLDER, f"{base_name}_{timestamp}.mp4")
 
         await cam.image_to_file(img_path)
-        print(f"✅ Saved image: {img_path}")
+        print(f"Saved image: {img_path}")
 
         if cam.video_from_cache:
             await cam.video_to_file(vid_path)
-            print(f"🎥 Saved video: {vid_path}")
+            print(f"Saved video: {vid_path}")
         else:
-            print("⚠️ No recent video available.")
+            print("No recent video available.")
 
 async def main():
     async with ClientSession() as session:

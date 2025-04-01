@@ -25,13 +25,13 @@ async def run_setup(session):
     await auth.send_auth_key(blink, two_fa)
     await blink.setup_post_verify()
 
-    print("✅ Blink setup complete!")
+    print("Blink setup complete!")
 
     with open(CREDS_FILE, "w") as f:
         json.dump(auth.data, f)
 
 async def main():
-    print("📸 MMM-PictureVerse: Optional Blink Setup")
+    print("MMM-PictureVerse: Optional Blink Setup")
     print("This displays motion-triggered clips and snapshots from your Blink camera.\n")
 
     answer = input("Do you want to set up Blink camera access now? (Y/N): ").strip().lower()
@@ -39,7 +39,7 @@ async def main():
         async with ClientSession() as session:
             await run_setup(session)
     else:
-        print("✅ Blink setup skipped. You can run this script later to set it up.")
+        print("Blink setup skipped. You can run this script later to set it up.")
 
 # Run the main coroutine
 if __name__ == "__main__":

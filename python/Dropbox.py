@@ -31,7 +31,7 @@ def download_images():
         for filename, entry in dropbox_files.items():
             local_path = os.path.join(LOCAL_FOLDER, filename)
             if not os.path.exists(local_path):  # avoid re-downloading
-                print(f"⬇ Downloading {filename}")
+                print(f"Downloading {filename}")
                 _, res = dbx.files_download(entry.path_lower)
                 with open(local_path, "wb") as f:
                     f.write(res.content)
@@ -39,7 +39,7 @@ def download_images():
         # Remove files that no longer exist in Dropbox
         for local_file in local_files:
             if local_file not in dropbox_files and os.path.isfile(os.path.join(LOCAL_FOLDER, local_file)):
-                print(f"🗑️ Removing {local_file} (no longer in Dropbox)")
+                print(f"Removing {local_file} (no longer in Dropbox)")
                 os.remove(os.path.join(LOCAL_FOLDER, local_file))
         
         return True
