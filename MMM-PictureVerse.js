@@ -174,22 +174,24 @@ Module.register("MMM-PictureVerse", {
       // Store the new list of images
       this.familyImages = payload;
       
-      // If this is an update (not first load) and we're showing family images,
-      // reset the index to show the newest image
-      if (this.loaded && this.currentDisplay === "family" && payload.length > 0) {
-        // Find new images (if any)
-        const previousImages = new Set(this.familyImages || []);
-        const newImages = payload.filter(img => !previousImages.has(img));
-        
-        if (newImages.length > 0) {
-          // If there are new images, show the first new one
-          this.familyIndex = payload.indexOf(newImages[0]);
-          console.log(`New image detected, showing it now at index ${this.familyIndex}`);
+      // Determine image selection method based on sequential config
+      if (this.loaded && this.currentDisplay === "family") {
+        if (this.config.sequential === false) {
+          // Random selection
+          this.familyIndex = Math.floor(Math.random() * this.familyImages.length);
+        } else {
+          // Sequential selection
+          if (this.familyIndex === undefined || this.familyIndex >= this.familyImages.length) {
+            this.familyIndex = 0;
+          } else {
+            this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+          }
         }
+        
+        console.log(`Selected image at index ${this.familyIndex} out of ${this.familyImages.length} images`);
       } else if (payload.length > 0) {
-        // Make sure we're starting with a valid index
+        // For initial load, start at the first image
         this.familyIndex = 0;
-        console.log(`Setting initial family index to 0 of ${payload.length} images`);
       }
       
       this.loaded = true;
