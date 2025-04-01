@@ -9,12 +9,12 @@ module.exports = NodeHelper.create({
     console.log("MMM-PictureVerse helper started");
     this.setupWatchers();
     
-    // Set up periodic Dropbox sync (every 5 minutes)
+    // Set up periodic Dropbox sync (every 1 minute)
     this.dropboxInterval = setInterval(() => {
       this.syncDropbox(() => {
         this.loadFamilyImages();
       });
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 1 * 60 * 1000); // 1 minute
   },
 
   setupWatchers() {
@@ -72,20 +72,20 @@ module.exports = NodeHelper.create({
   
   loadFamilyImages() {
     // Load family images from the Pictures folder
-    const picturesPath = path.join(__dirname, "Pictures");
+    const picturesPath = path.join(__dirname, "python", "Pictures");
     if (!fs.existsSync(picturesPath)) {
       console.log("Pictures directory not found, creating it");
       fs.mkdirSync(picturesPath, { recursive: true });
       return;
     }
-  
+
     const files = fs.readdirSync(picturesPath)
       .filter(f => f.toLowerCase().endsWith(".jpg") || 
                    f.toLowerCase().endsWith(".jpeg") || 
                    f.toLowerCase().endsWith(".png") ||
                    f.toLowerCase().endsWith(".gif"))
-      .map(f => `modules/MMM-PictureVerse/Pictures/${f}`);
-  
+      .map(f => `modules/MMM-PictureVerse/python/Pictures/${f}`);
+
     console.log(`Found ${files.length} family images`);
     this.sendSocketNotification("FAMILY_IMAGES", files);
   },
@@ -159,6 +159,12 @@ module.exports = NodeHelper.create({
           });
         }
       });
+    }
+
+    if (notification === "SYNC_DROPBOX") {
+      // Directly sync with Dropbox without waiting for loadFamilyImages
+      console.log("Performing immediate Dropbox sync on startup");
+      this.syncDropbox();
     }
 
     if (notification === "REQUEST_IMAGES") {

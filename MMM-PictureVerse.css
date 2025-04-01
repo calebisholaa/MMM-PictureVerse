@@ -34,18 +34,29 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 90%;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
 .motion-container {
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 90%;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  position: relative;
 }
 
+.camera-container .blessed-image,
+.motion-container .blessed-image,
 .motion-container video {
-  margin-top: 0.5em;
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  margin: 0 auto;
 }
 
 /* Background image for fullscreen mode */

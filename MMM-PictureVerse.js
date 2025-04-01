@@ -16,7 +16,7 @@ Module.register("MMM-PictureVerse", {
     maxWidth: "100%",              // Maximum width for non-fullscreen
     maxHeight: "100%",             // Maximum height for non-fullscreen
     backgroundStyle: "blur",       // Background style: "blur", "color", or "none"
-    backgroundColor: "#000000",    // Background color when using "color" style
+    backgroundColor: "black",      // Background color when using "color" style
     blur: 8,                       // Background blur amount (for fullscreen)
     transition: 1000               // Transition time between images (ms)
   },
@@ -41,6 +41,9 @@ Module.register("MMM-PictureVerse", {
 
     // Request initial data
     this.sendSocketNotification("REQUEST_VERSE");
+    
+    // Request immediate Dropbox sync on startup
+    this.sendSocketNotification("SYNC_DROPBOX");
     this.sendSocketNotification("REQUEST_IMAGES");
 
     if (this.config.showBlink) {
@@ -282,8 +285,13 @@ Module.register("MMM-PictureVerse", {
           const img = document.createElement("img");
           img.src = this.latestImage;
           img.className = "blessed-image visible";
-          container.appendChild(img);
           
+          // Center the camera image
+          img.style.position = "relative";
+          img.style.left = "auto";
+          img.style.top = "auto";
+          
+          container.appendChild(img);
           wrapper.appendChild(container);
         } else {
           wrapper.innerHTML = "Camera image not available";
@@ -301,6 +309,11 @@ Module.register("MMM-PictureVerse", {
           video.autoplay = true;
           video.loop = false;
           video.className = "blessed-image visible";
+          
+          // Center the video
+          video.style.position = "relative";
+          video.style.left = "auto";
+          video.style.top = "auto";
       
           video.onended = () => {
             this.videoIndex = (this.videoIndex + 1) % this.motionVideos.length;
