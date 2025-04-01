@@ -179,7 +179,7 @@ Module.register("MMM-PictureVerse", {
         if (this.familyImages.length > 0) {
           const img = document.createElement("img");
           img.src = this.familyImages[this.familyIndex];
-          img.className = "blessed-image";
+          img.className = "blessed-image visible";
           wrapper.appendChild(img);
         } else {
           wrapper.innerHTML = "No family images available";
@@ -206,20 +206,19 @@ Module.register("MMM-PictureVerse", {
         if (this.motionVideos.length > 0) {
           const container = document.createElement("div");
           container.className = "motion-container";
-          
+      
           const video = document.createElement("video");
           video.src = this.motionVideos[this.videoIndex];
           video.controls = true;
           video.autoplay = true;
           video.loop = false;
-          video.className = "blessed-image";
-          
-          // Move to next video when this one ends
+          video.className = "blessed-image visible";
+      
           video.onended = () => {
             this.videoIndex = (this.videoIndex + 1) % this.motionVideos.length;
             this.updateDom();
           };
-          
+      
           container.appendChild(video);
           wrapper.appendChild(container);
         } else {
