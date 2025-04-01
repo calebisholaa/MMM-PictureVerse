@@ -1,1 +1,53 @@
 /.venv
+# Node.js
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+package-lock.json
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Configuration files with sensitive data
+python/creds.json
+python/dropbox_config.json
+python/dropbox_config_template.json
+
+# Media files and images
+python/media/*
+python/Pictures/*
+!python/media/.gitkeep
+!python/Pictures/.gitkeep
+
+# Logs
+logs
+*.log
+
+# OS specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
