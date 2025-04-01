@@ -23,7 +23,7 @@ A MagicMirror² module that displays:
 
 2. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/MMM-PictureVerse.git
+   git clone https://github.com/calebisholaa/MMM-PictureVerse.git
    ```
 
 3. Install dependencies:
@@ -34,11 +34,13 @@ A MagicMirror² module that displays:
    sudo apt update
    sudo apt install python3-venv
    
+   # Make the scripts executable
+   chmod +x *.sh
+   
    # Install module dependencies and set up Python virtual environment
    npm install
    
-   # Make the scripts executable
-   chmod +x *.sh
+ 
    ```
 
 The installation process will automatically:
@@ -70,6 +72,7 @@ To display photos from your Dropbox account:
      ```
    - Create a file named `dropbox_config.json`:
      ```bash
+     cp dropbox_config_template.json dropbox_config.json
      nano dropbox_config.json
      ```
    - Add the following content, replacing the values with your own:
