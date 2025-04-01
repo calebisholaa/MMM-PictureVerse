@@ -6,7 +6,7 @@ from aiohttp import ClientSession
 import os
 from datetime import datetime
 
-MEDIA_FOLDER = "media"
+MEDIA_FOLDER =  os.path.join(os.path.dirname(__file__), "media")
 CREDS_FILE = os.path.join(os.path.dirname(__file__), "creds.json")
 
 async def fetch_blink_media(session):
