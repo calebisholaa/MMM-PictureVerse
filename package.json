@@ -6,8 +6,7 @@
   "scripts": {
     "setup-blink": "python3 python/BlinkSetup.py",
     "sync-dropbox": "python3 python/Dropbox.py",
-    "postinstall": "npm run install-deps",
-    "install-deps": "pip3 install -r python/requirements.txt && npm install chokidar"
+    "postinstall": "npm install chokidar"
   },
   "dependencies": {
     "chokidar": "^3.5.3"

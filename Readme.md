@@ -36,6 +36,23 @@ A MagicMirror² module that displays:
    npm install
    ```
 
+4. Install Python dependencies (choose one method):
+
+   **Method A: Using apt (recommended for Raspberry Pi)**
+   ```bash
+   sudo apt update
+   sudo apt install python3-dropbox python3-aiohttp
+   
+   # Install blinkpy separately since it might not be in apt
+   pip3 install --user blinkpy
+   ```
+
+   **Method B: Using pip with --user flag**
+   ```bash
+   pip3 install --user dropbox blinkpy aiohttp
+   ```
+
+
 ## Setting Up Dropbox
 
 To display photos from your Dropbox account:
