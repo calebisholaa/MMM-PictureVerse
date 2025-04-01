@@ -115,8 +115,12 @@ Module.register("MMM-PictureVerse", {
     
     // Cycle to next family image
     if (this.familyImages.length > 0) {
+      const oldIndex = this.familyIndex;
       this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+      console.log(`Cycling family image from index ${oldIndex} to ${this.familyIndex} of ${this.familyImages.length} total`);
       this.updateDom();
+    } else {
+      console.log("No family images to display");
     }
   },
 
@@ -164,6 +168,9 @@ Module.register("MMM-PictureVerse", {
     }
 
     if (notification === "FAMILY_IMAGES") {
+      // Log received images for debugging
+      console.log(`Received ${payload.length} family images:`, payload);
+      
       // Store the new list of images
       this.familyImages = payload;
       
@@ -177,10 +184,15 @@ Module.register("MMM-PictureVerse", {
         if (newImages.length > 0) {
           // If there are new images, show the first new one
           this.familyIndex = payload.indexOf(newImages[0]);
-          console.log("New image detected, showing it now");
+          console.log(`New image detected, showing it now at index ${this.familyIndex}`);
         }
+      } else if (payload.length > 0) {
+        // Make sure we're starting with a valid index
+        this.familyIndex = 0;
+        console.log(`Setting initial family index to 0 of ${payload.length} images`);
       }
       
+      this.loaded = true;
       this.updateDom();
     }
   },

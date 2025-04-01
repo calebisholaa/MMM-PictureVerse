@@ -132,29 +132,39 @@ module.exports = NodeHelper.create({
     if (notification === "REQUEST_BLINK") {
       const script = path.join(__dirname, "python", "Blink.py");
       const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
-      
+    
       exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
         if (error) {
           console.error(`Error executing Blink.py: ${error}`);
           console.error(stderr);
           return;
         }
-        
+    
         console.log("Blink.py output:", stdout);
-        
-        // After executing the script, scan for media
+    
         const mediaPath = path.join(__dirname, "python", "media");
         if (fs.existsSync(mediaPath)) {
           const files = fs.readdirSync(mediaPath);
-          
-          // Find the latest files - sorted by name which includes timestamp
+    
+          // Filter for image and video files
           const imageFiles = files.filter(f => f.endsWith(".jpg")).sort().reverse();
           const videoFiles = files.filter(f => f.endsWith(".mp4")).sort().reverse();
-          
-          const latestImage = imageFiles.length > 0 ? imageFiles[0] : null;
-          
+    
+          // Determine current hour timestamp from the newest image
+          const latestImage = imageFiles[0];
+          let matchingImages = [];
+    
+          if (latestImage) {
+            const match = latestImage.match(/(\d{8}_\d{2})\d{4}/); // matches YYYYMMDD_HH
+            const targetPrefix = match ? match[1] : null;
+    
+            if (targetPrefix) {
+              matchingImages = imageFiles.filter(filename => filename.includes(targetPrefix));
+            }
+          }
+    
           this.sendSocketNotification("BLINK_MEDIA_READY", {
-            image: latestImage ? `modules/MMM-PictureVerse/python/media/${latestImage}` : null,
+            images: matchingImages.map(f => `modules/MMM-PictureVerse/python/media/${f}`),
             videos: videoFiles.map(v => `modules/MMM-PictureVerse/python/media/${v}`)
           });
         }
