@@ -72,6 +72,7 @@ To display photos from your Dropbox account:
      ```
    - Create a file named `dropbox_config.json`:
      ```bash
+     cp dropbox_config_template.json dropbox_config.json
      nano dropbox_config.json
      ```
    - Add the following content, replacing the values with your own:
