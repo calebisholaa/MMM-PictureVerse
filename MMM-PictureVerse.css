@@ -20,7 +20,7 @@
 
 .blessed-image.visible {
   opacity: 1;
-  z-index: 1;
+  z-index: 0;
 }
 .verse {
   color: white;
@@ -91,7 +91,7 @@
   height: 100%;
   width: 100%;
   background-size: cover;
-  z-index: 0;
+  z-index: -1;
 }
 
 /* Add additional styling for image containers */
