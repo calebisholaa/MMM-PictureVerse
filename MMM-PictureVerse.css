@@ -28,6 +28,9 @@
   font-size: 2em;
   text-align: center;
   padding: 20px;
+  max-width: 80%;
+  margin: 0 auto;
+  line-height: 1.4;
 }
 
 .camera-container {
@@ -67,6 +70,7 @@
   height: 100%;
   width: 100%;
   background-size: cover;
+  z-index: 0;
 }
 
 /* Styling for timestamp overlays */
@@ -79,6 +83,7 @@
   padding: 0.3em 0.6em;
   border-radius: 0.3em;
   font-size: 0.8em;
+  z-index: 2;
 }
 
 /* Animation for motion alerts */
@@ -91,4 +96,23 @@
 .motion-alert {
   animation: pulse 2s infinite;
   border: 2px solid red;
+}
+
+/* Transition animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.fade-in {
+  animation: fadeIn 1s ease-in forwards;
+}
+
+.fade-out {
+  animation: fadeOut 1s ease-out forwards;
 }

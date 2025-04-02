@@ -2,9 +2,8 @@ Module.register("MMM-PictureVerse", {
   defaults: {
     // Main timing settings
     familyInterval: 30000,         // How long to show each family photo (30 sec)
-    verseInterval: 3600000,        // Show verse once per hour (1 hour)
-    cameraInterval: 3600000,       // Show cameras once per hour (1 hour)
-    cameraDisplayTime: 60000,      // How long to display cameras when shown (1 min)
+    verseDisplayTime: 120000,      // Show verse for 2 minutes
+    cameraDisplayTime: 120000,     // Show cameras for 2 minutes (2 min)
     
     // Other settings
     prioritizeMotionClips: true,   // Interrupt normal flow to show motion clips
@@ -23,21 +22,23 @@ Module.register("MMM-PictureVerse", {
 
   start() {
     // Initialize state variables
-    this.currentDisplay = "family";   // Start with family photos
+    this.currentDisplay = "loading";   // Start with loading state
     this.familyImages = [];
     this.familyIndex = 0;
     this.bibleVerse = null;
-    this.latestImage = null;
+    this.cameraImages = [];
+    this.cameraIndex = 0;
     this.motionVideos = [];
     this.videoIndex = 0;
     this.loaded = false;
-    this.lastVerseTime = 0;
-    this.lastCameraTime = 0;
     this.showingMotion = false;
     this.motionTimer = null;
     this.wrapper = null;
     this.fullscreen = false;
     this.timer = null;
+    this.sequenceTimer = null;
+    this.hourlyTimer = null;
+    this.lastHour = new Date().getHours(); // Track current hour for hourly reset
 
     // Request initial data
     this.sendSocketNotification("REQUEST_VERSE");
@@ -48,87 +49,163 @@ Module.register("MMM-PictureVerse", {
 
     if (this.config.showBlink) {
       this.sendSocketNotification("CHECK_BLINK");
+      // Request camera images on startup
+      this.sendSocketNotification("REQUEST_BLINK");
     }
 
-    // Main display timer
-    this.timer = setInterval(() => {
-      this.updateDisplay();
-    }, this.config.familyInterval);
-
-    // Check for timed events every minute
-    this.scheduledTimer = setInterval(() => {
-      this.checkScheduledEvents();
-    }, 60000);
-    
     // Check if we're in fullscreen mode
     if (this.data.position.toLowerCase().startsWith("fullscreen")) {
       this.fullscreen = true;
     }
+
+    // Start the hourly sequence timer (check every minute for hour change)
+    this.hourlyTimer = setInterval(() => {
+      this.checkHourlyReset();
+    }, 60000);
+
+    // Start the display sequence when everything is loaded
+    this.startSequence();
   },
 
   getStyles() {
     return ["MMM-PictureVerse.css"];
   },
 
-  checkScheduledEvents() {
-    const now = Date.now();
+  // Check if hour has changed and restart sequence if needed
+  checkHourlyReset() {
+    const currentHour = new Date().getHours();
     
-    // Check if it's time to show verse (once per hour)
-    if (now - this.lastVerseTime >= this.config.verseInterval) {
-      this.lastVerseTime = now;
-      this.currentDisplay = "verse";
+    // If hour has changed, restart the sequence
+    if (currentHour !== this.lastHour) {
+      console.log(`Hour changed from ${this.lastHour} to ${currentHour}, restarting sequence`);
+      this.lastHour = currentHour;
       
-      // Schedule to return to family photos after a short time
-      setTimeout(() => {
-        if (this.currentDisplay === "verse") {
-          this.currentDisplay = "family";
-          this.updateDom();
-        }
-      }, 60000); // Show verse for 1 minute
+      // Clear any existing timers
+      this.clearTimers();
       
-      this.updateDom();
-    }
-    
-    // Check if it's time to show cameras (once per hour)
-    if (now - this.lastCameraTime >= this.config.cameraInterval) {
-      this.lastCameraTime = now;
-      this.currentDisplay = "camera";
+      // Request fresh verse and camera data
+      this.sendSocketNotification("REQUEST_VERSE");
       this.sendSocketNotification("REQUEST_BLINK");
       
-      // Schedule to return to family photos after camera display time
-      setTimeout(() => {
-        if (this.currentDisplay === "camera") {
-          this.currentDisplay = "family";
-          this.updateDom();
-        }
-      }, this.config.cameraDisplayTime);
-      
-      this.updateDom();
+      // Restart the sequence
+      this.startSequence();
     }
   },
 
-  updateDisplay() {
-    // Skip if showing motion clips or not on family display
-    if (this.showingMotion || this.currentDisplay !== "family") {
+  // Clear all active timers
+  clearTimers() {
+    if (this.timer) {
+      clearTimeout(this.timer);
+      this.timer = null;
+    }
+    
+    if (this.sequenceTimer) {
+      clearTimeout(this.sequenceTimer);
+      this.sequenceTimer = null;
+    }
+    
+    if (this.motionTimer) {
+      clearTimeout(this.motionTimer);
+      this.motionTimer = null;
+    }
+  },
+
+  // Start the hourly display sequence: verse -> cameras -> family photos
+  startSequence() {
+    console.log("Starting display sequence");
+    
+    // Wait for everything to load
+    if (!this.loaded) {
+      console.log("Waiting for data to load before starting sequence");
+      this.sequenceTimer = setTimeout(() => {
+        this.startSequence();
+      }, 5000); // Check again in 5 seconds
       return;
     }
     
-    // Cycle to next family image
-    if (this.familyImages.length > 0) {
-      const oldIndex = this.familyIndex;
-      this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
-      console.log(`Cycling family image from index ${oldIndex} to ${this.familyIndex} of ${this.familyImages.length} total`);
+    // Clear any existing timers
+    this.clearTimers();
+    
+    // Start with verse of the day
+    this.currentDisplay = "verse";
+    this.updateDom();
+    console.log("Showing verse of the day for 2 minutes");
+    
+    // After 2 minutes, show camera images
+    this.sequenceTimer = setTimeout(() => {
+      // If we don't have camera images yet, request them
+      if (this.cameraImages.length === 0 && this.config.showBlink) {
+        console.log("No camera images available, requesting from Blink");
+        this.sendSocketNotification("REQUEST_BLINK");
+      }
+      
+      this.currentDisplay = "camera";
+      this.cameraIndex = 0;
       this.updateDom();
-    } else {
-      console.log("No family images to display");
+      console.log("Showing camera images for 2 minutes");
+      
+      // Start cycling through camera images
+      this.startCameraTimer();
+      
+      // After 2 minutes, switch to family photos
+      this.sequenceTimer = setTimeout(() => {
+        this.currentDisplay = "family";
+        this.familyIndex = 0;
+        this.updateDom();
+        console.log("Showing family photos until end of hour");
+        
+        // Start cycling through family images
+        this.startFamilyTimer();
+      }, this.config.cameraDisplayTime);
+      
+    }, this.config.verseDisplayTime);
+  },
+
+  // Start timer for cycling camera images
+  startCameraTimer() {
+    if (this.cameraImages.length === 0) {
+      console.log("No camera images to cycle through");
+      return;
     }
+    
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+    
+    this.timer = setTimeout(() => {
+      if (this.currentDisplay === "camera") {
+        this.cameraIndex = (this.cameraIndex + 1) % this.cameraImages.length;
+        this.updateDom();
+        this.startCameraTimer(); // Continue cycling
+      }
+    }, 10000); // Show each camera image for 10 seconds
+  },
+
+  // Start timer for cycling family images
+  startFamilyTimer() {
+    if (this.familyImages.length === 0) {
+      console.log("No family images to cycle through");
+      return;
+    }
+    
+    if (this.timer) {
+      clearTimeout(this.timer);
+    }
+    
+    this.timer = setTimeout(() => {
+      if (this.currentDisplay === "family") {
+        this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+        this.updateDom();
+        this.startFamilyTimer(); // Continue cycling
+      }
+    }, this.config.familyInterval);
   },
 
   socketNotificationReceived(notification, payload) {
     if (notification === "VERSE_RESULT") {
       this.bibleVerse = payload;
-      this.loaded = true;
-      this.updateDom();
+      console.log("Received verse:", this.bibleVerse ? this.bibleVerse.substring(0, 30) + "..." : "None");
+      this.checkAllLoaded();
     }
 
     if (notification === "BLINK_STATUS" && payload === true) {
@@ -137,12 +214,20 @@ Module.register("MMM-PictureVerse", {
     }
 
     if (notification === "BLINK_MEDIA_READY") {
-      this.latestImage = payload.image;
+      // Handle both single image and multiple images
+      if (payload.images && payload.images.length > 0) {
+        this.cameraImages = payload.images;
+        console.log(`Received ${this.cameraImages.length} camera images`);
+      } else if (payload.image) {
+        this.cameraImages = [payload.image];
+        console.log("Received 1 camera image");
+      } else {
+        console.log("No camera images received");
+      }
       
-      // If there are new motion videos, prioritize showing them
+      // Store motion videos if available
       if (payload.videos && payload.videos.length > 0) {
         this.motionVideos = payload.videos;
-        this.videoIndex = 0;
         
         // Only interrupt current flow if prioritizing motion clips
         if (this.config.prioritizeMotionClips) {
@@ -151,51 +236,54 @@ Module.register("MMM-PictureVerse", {
             clearTimeout(this.motionTimer);
           }
           
+          // Remember current display state
+          this.previousDisplay = this.currentDisplay;
+          
           // Switch to showing motion clips
           this.currentDisplay = "motion";
           this.showingMotion = true;
+          this.videoIndex = 0;
           
           // Set timer to return to previous state
           this.motionTimer = setTimeout(() => {
             this.showingMotion = false;
-            this.currentDisplay = "family";
+            this.currentDisplay = this.previousDisplay;
             this.updateDom();
           }, this.config.motionClipDisplayTime);
         }
       }
       
+      this.checkAllLoaded();
       this.updateDom();
     }
 
     if (notification === "FAMILY_IMAGES") {
       // Log received images for debugging
-      console.log(`Received ${payload.length} family images:`, payload);
+      console.log(`Received ${payload.length} family images`);
       
       // Store the new list of images
       this.familyImages = payload;
       
-      // Determine image selection method based on sequential config
-      if (this.loaded && this.currentDisplay === "family") {
-        if (this.config.sequential === false) {
-          // Random selection
-          this.familyIndex = Math.floor(Math.random() * this.familyImages.length);
-        } else {
-          // Sequential selection
-          if (this.familyIndex === undefined || this.familyIndex >= this.familyImages.length) {
-            this.familyIndex = 0;
-          } else {
-            this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
-          }
-        }
-        
-        console.log(`Selected image at index ${this.familyIndex} out of ${this.familyImages.length} images`);
-      } else if (payload.length > 0) {
-        // For initial load, start at the first image
+      // Set initial index
+      if (this.familyImages.length > 0 && this.familyIndex >= this.familyImages.length) {
         this.familyIndex = 0;
       }
       
-      this.loaded = true;
+      this.checkAllLoaded();
       this.updateDom();
+    }
+  },
+
+  // Check if all required data is loaded
+  checkAllLoaded() {
+    if (!this.loaded && this.bibleVerse && (this.familyImages.length > 0 || this.cameraImages.length > 0)) {
+      console.log("All data loaded, starting display sequence");
+      this.loaded = true;
+      
+      // Start the sequence if we're still in loading state
+      if (this.currentDisplay === "loading") {
+        this.startSequence();
+      }
     }
   },
 
@@ -243,19 +331,8 @@ Module.register("MMM-PictureVerse", {
     return result;
   },
 
-  startTimer() {
-    if (this.timer !== null) {
-      clearTimeout(this.timer);
-    }
-    
-    const self = this;
-    self.timer = setTimeout(() => {
-      self.updateDom(self.config.transition);
-    }, this.config.familyInterval);
-  },
-
   getDom() {
-    if (this.fullscreen && this.currentDisplay === "family") {
+    if (this.fullscreen && (this.currentDisplay === "family" || this.currentDisplay === "camera")) {
       return this.getFullscreenDom();
     }
     return this.getRegularDom();
@@ -285,19 +362,18 @@ Module.register("MMM-PictureVerse", {
           img.style.maxHeight = this.config.maxHeight;
           img.style.transition = `opacity ${this.config.transition/1000}s`;
           wrapper.appendChild(img);
-          this.startTimer();
         } else {
           wrapper.innerHTML = "No family images available";
         }
         break;
         
       case "camera":
-        if (this.latestImage) {
+        if (this.cameraImages.length > 0) {
           const container = document.createElement("div");
           container.className = "camera-container";
           
           const img = document.createElement("img");
-          img.src = this.latestImage;
+          img.src = this.cameraImages[this.cameraIndex];
           img.className = "blessed-image visible";
           
           // Center the camera image
@@ -308,7 +384,7 @@ Module.register("MMM-PictureVerse", {
           container.appendChild(img);
           wrapper.appendChild(container);
         } else {
-          wrapper.innerHTML = "Camera image not available";
+          wrapper.innerHTML = "Camera images not available";
         }
         break;
         
@@ -342,7 +418,7 @@ Module.register("MMM-PictureVerse", {
         break;
         
       default:
-        wrapper.innerHTML = "Unknown display type";
+        wrapper.innerHTML = "Loading...";
     }
 
     return wrapper;
@@ -370,8 +446,20 @@ Module.register("MMM-PictureVerse", {
       this.fg = document.createElement("div");
       this.wrapper.appendChild(this.fg);
     }
+
+    // Get the current image source based on display type
+    let images = [];
+    let currentIndex = 0;
     
-    if (this.familyImages.length > 0) {
+    if (this.currentDisplay === "family") {
+      images = this.familyImages;
+      currentIndex = this.familyIndex;
+    } else if (this.currentDisplay === "camera") {
+      images = this.cameraImages;
+      currentIndex = this.cameraIndex;
+    }
+    
+    if (images.length > 0 && currentIndex < images.length) {
       // Get the size of the margin, if any, we want to be full screen
       const m = window
         .getComputedStyle(document.body, null)
@@ -381,8 +469,8 @@ Module.register("MMM-PictureVerse", {
       this.fg.style.border = "none";
       this.fg.style.margin = "0px";
 
-      // Get the current family image
-      const imageSrc = this.familyImages[this.familyIndex];
+      // Get the current image
+      const imageSrc = images[currentIndex];
       let img = null;
       
       if (imageSrc) {
@@ -406,7 +494,11 @@ Module.register("MMM-PictureVerse", {
           const eventImage = evt.currentTarget;
           console.error(`Image load failed: ${eventImage.src}`);
           // Skip to next image
-          this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+          if (this.currentDisplay === "family") {
+            this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+          } else if (this.currentDisplay === "camera") {
+            this.cameraIndex = (this.cameraIndex + 1) % this.cameraImages.length;
+          }
           this.updateDom();
         };
         
@@ -453,9 +545,6 @@ Module.register("MMM-PictureVerse", {
             self.bk.style.backgroundImage = "none";
             self.bk.style.backgroundColor = self.config.backgroundColor;
           }
-          
-          // Start timer for next image
-          self.startTimer();
         };
       }
     }

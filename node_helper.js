@@ -150,23 +150,37 @@ module.exports = NodeHelper.create({
           const imageFiles = files.filter(f => f.endsWith(".jpg")).sort().reverse();
           const videoFiles = files.filter(f => f.endsWith(".mp4")).sort().reverse();
     
-          // Determine current hour timestamp from the newest image
-          const latestImage = imageFiles[0];
-          let matchingImages = [];
-    
-          if (latestImage) {
-            const match = latestImage.match(/(\d{8}_\d{2})\d{4}/); // matches YYYYMMDD_HH
-            const targetPrefix = match ? match[1] : null;
-    
-            if (targetPrefix) {
-              matchingImages = imageFiles.filter(filename => filename.includes(targetPrefix));
+          // Determine current hour timestamp from the newest image or use current time
+          const now = new Date();
+          const currentHourPrefix = now.toISOString().slice(0, 10).replace(/-/g, '') + '_' + 
+                                     String(now.getHours()).padStart(2, '0');
+          
+          // First, try to find images from the current hour
+          let matchingImages = imageFiles.filter(filename => {
+            const match = filename.match(/(\d{8}_\d{2})\d{4}/);
+            return match && match[1] === currentHourPrefix;
+          });
+          
+          // If no images from current hour, include all images from today
+          if (matchingImages.length === 0) {
+            const todayPrefix = now.toISOString().slice(0, 10).replace(/-/g, '');
+            matchingImages = imageFiles.filter(filename => filename.includes(todayPrefix));
+            
+            // If still no images, just use all images
+            if (matchingImages.length === 0) {
+              matchingImages = imageFiles;
             }
           }
+          
+          console.log(`Found ${matchingImages.length} matching camera images for current hour/day`);
     
           this.sendSocketNotification("BLINK_MEDIA_READY", {
             images: matchingImages.map(f => `modules/MMM-PictureVerse/python/media/${f}`),
             videos: videoFiles.map(v => `modules/MMM-PictureVerse/python/media/${v}`)
           });
+        } else {
+          console.log("Media directory not found");
+          this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
         }
       });
     }

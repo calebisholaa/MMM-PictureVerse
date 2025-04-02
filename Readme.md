@@ -1,16 +1,20 @@
 # MMM-PictureVerse
 
 A MagicMirror² module that displays:
-- Family photos from your Dropbox as the main display
-- Bible verses of the day (shown once per hour)
-- Blink security camera feeds (shown once per hour)
+- Bible verses of the day
+- Blink security camera feeds
+- Family photos from your Dropbox
 - Motion detection video clips from Blink cameras (shown immediately when detected)
 
 ## Features
 
-- **Family Photos**: Connect to your Dropbox account to display your family photos
-- **Bible Verses**: Shows a Bible verse once per hour from the Daily Verse API
-- **Security Cameras**: Displays feeds from your Blink security cameras once per hour
+- **Hourly Sequence**: Follows a structured hourly display sequence
+  1. Verse of the day for 2 minutes
+  2. Security camera images for 2 minutes 
+  3. Family photos until the end of the hour
+- **Bible Verses**: Shows a Bible verse at the start of each hour
+- **Security Cameras**: Displays feeds from your Blink security cameras, focusing on the current hour's images
+- **Family Photos**: Shows your Dropbox photos with smooth transitions
 - **Motion Detection**: Immediately shows video clips when motion is detected by your cameras
 - **Automatic Updates**: New photos added to Dropbox appear automatically on your mirror
 - **Dynamic Scaling**: Automatically sizes images to fit your display perfectly
@@ -106,12 +110,14 @@ If you have Blink cameras and want to display their feeds:
 
 ## How It Works
 
-The module will display your photos from Dropbox as the main content, with Bible verses and camera feeds shown at configured intervals:
+The module follows a structured sequence that repeats every hour:
 
-- **Photos**: Your Dropbox photos are the primary display, rotating at your configured interval (default: 30 seconds)
-- **Verses**: A Bible verse will be shown once per hour for 1 minute
-- **Cameras**: Security camera feeds are shown once per hour for 1 minute
-- **Motion**: Motion detection clips interrupt the regular display when detected
+1. **Bible Verse (2 minutes)**: At the start of each hour, the module displays the verse of the day for 2 minutes.
+2. **Camera Images (2 minutes)**: After the verse, the module displays security camera images for 2 minutes. It prioritizes images from the current hour.
+3. **Family Photos (remainder of hour)**: For the rest of the hour, the module displays family photos from your Dropbox with smooth transitions.
+4. **Motion Detection**: If motion is detected by your Blink cameras, the video clips will temporarily interrupt the normal display.
+
+At the start of a new hour, the sequence begins again with a fresh verse and camera images.
 
 ## Module Configuration
 
@@ -122,31 +128,22 @@ Add the module to your `config/config.js` file:
   module: "MMM-PictureVerse",
   position: "fullscreen", // Recommended for photo display
   config: {
-    // How long to show each family photo (default: 30 seconds)
-    familyInterval: 30000,
+    // Timing settings
+    familyInterval: 30000,       // How long to show each family photo (30 sec)
+    verseDisplayTime: 120000,    // Show verse for 2 minutes
+    cameraDisplayTime: 120000,   // Show cameras for 2 minutes
     
-    // Show verse once per hour (default: 1 hour)
-    verseInterval: 3600000,
+    // Motion detection
+    prioritizeMotionClips: true, // Interrupt flow to show motion clips
+    motionClipDisplayTime: 30000, // How long to show motion clips
     
-    // Show cameras once per hour (default: 1 hour)
-    cameraInterval: 3600000,
-    
-    // How long to display cameras when shown (default: 1 minute)
-    cameraDisplayTime: 60000,
-    
-    // Whether to interrupt normal flow to show motion clips (default: true)
-    prioritizeMotionClips: true,
-    
-    // How long to show motion clips (default: 30 seconds)
-    motionClipDisplayTime: 30000,
-    
-    // Whether to enable Blink camera integration (default: true)
+    // Whether to enable Blink camera integration
     showBlink: true,
     
     // Image display settings
     opacity: 0.9,
     backgroundStyle: "blur",    // Options: "blur", "color", or "none"
-    backgroundColor: "#000000", // Used when backgroundStyle is "color"
+    backgroundColor: "black",   // Used when backgroundStyle is "color"
     blur: 8,                    // Blur amount in pixels when using "blur" style
     transition: 1000            // Transition time between images (ms)
   }
@@ -173,15 +170,6 @@ When using fullscreen mode, you can customize the background appearance:
 - **backgroundColor**: Any valid CSS color (used when backgroundStyle is "color")
 - **blur**: Amount of blur in pixels (used when backgroundStyle is "blur")
 - **transition**: Duration of fade transitions between images (in milliseconds)
-
-
-
-### Automatic Updates
-
-- The module checks for new photos in your Dropbox folder every 5 minutes
-- New photos are immediately added to the rotation
-- Deleted photos are automatically removed
-- Motion detection clips are displayed as soon as they are detected
 
 ## Troubleshooting
 
