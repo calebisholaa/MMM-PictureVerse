@@ -27,14 +27,14 @@ async def monitor_motion(blink):
                 if cam.motion_detected:
                     motion_detected = True
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    print(f"🚨 Motion detected on {name} at {timestamp}!")
+                    print(f"Motion detected on {name} at {timestamp}!")
                     
                     # Take a snapshot when motion is detected
                     await cam.snap_picture()
-                    print("📸 Taking snapshot...")
+                    print("Taking snapshot...")
                     
                     # Wait for image and video to be available
-                    print("⏳ Waiting for media to process...")
+                    print("Waiting for media to process...")
                     await asyncio.sleep(10)  # Adjust wait time if needed
                     await blink.refresh()
                     
@@ -43,15 +43,15 @@ async def monitor_motion(blink):
                     img_path = os.path.join(MEDIA_FOLDER, f"{base_name}_{timestamp}.jpg")
                     
                     await cam.image_to_file(img_path)
-                    print(f"📷 Motion snapshot saved: {img_path}")
+                    print(f"Motion snapshot saved: {img_path}")
                     
                     # Save video if available
                     if cam.video_from_cache:
                         video_path = os.path.join(MEDIA_FOLDER, f"{base_name}_{timestamp}.mp4")
                         await cam.video_to_file(video_path)
-                        print(f"🎥 Motion video saved: {video_path}")
+                        print(f"Motion video saved: {video_path}")
                     else:
-                        print("⚠️ No motion video available yet.")
+                        print("No motion video available yet.")
                 else:
                     print(f"No motion on {name}.")
             
