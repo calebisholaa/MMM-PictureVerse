@@ -467,179 +467,204 @@ Module.register("MMM-PictureVerse", {
     return wrapper;
   },
 
-  getFullscreenDom() {
-    const self = this;
-    
-    // If wrapper div not yet created
-    if (this.wrapper === null) {
-      // Create it once, try to reduce image flash on change
-      this.wrapper = document.createElement("div");
-      this.bk = document.createElement("div");
-      this.bk.className = "background-image";
-      
-      // Set up background style
-      if (this.config.backgroundStyle === "blur") {
-        this.bk.style.filter = `blur(${this.config.blur}px)`;
-        this.bk.style["-webkit-filter"] = `blur(${this.config.blur}px)`;
-      } else if (this.config.backgroundStyle === "color") {
-        this.bk.style.backgroundColor = this.config.backgroundColor;
-      }
-      
-      this.wrapper.appendChild(this.bk);
-      this.fg = document.createElement("div");
-      this.fg.style.position = "relative";
-      this.fg.style.width = "100%";
-      this.fg.style.height = "100%";
-      this.fg.style.overflow = "hidden";
-      this.wrapper.appendChild(this.fg);
-    }
+getFullscreenDom() {
+  const self = this;
   
-    // Get the current image source based on display type
-    let images = [];
-    let currentIndex = 0;
+  // If wrapper div not yet created
+  if (this.wrapper === null) {
+    // Create it once, try to reduce image flash on change
+    this.wrapper = document.createElement("div");
+    this.wrapper.className = "blessed-center"; // Add this class to ensure proper styling
     
-    if (this.currentDisplay === "family") {
-      images = this.familyImages;
-      currentIndex = this.familyIndex;
-    } else if (this.currentDisplay === "camera") {
-      images = this.cameraImages;
-      currentIndex = this.cameraIndex;
+    this.bk = document.createElement("div");
+    this.bk.className = "background-image";
+    
+    // Set up background style
+    if (this.config.backgroundStyle === "blur") {
+      this.bk.style.filter = `blur(${this.config.blur}px)`;
+      this.bk.style["-webkit-filter"] = `blur(${this.config.blur}px)`;
+    } else if (this.config.backgroundStyle === "color") {
+      this.bk.style.backgroundColor = this.config.backgroundColor;
     }
     
-    if (images.length > 0 && currentIndex < images.length && !this.isImageLoading) {
-      this.isImageLoading = true;
-      
-      // Get the size of the margin, if any, we want to be full screen
-      const m = window
-        .getComputedStyle(document.body, null)
-        .getPropertyValue("margin-top");
-      
-      // Set the style for the containing div
-      this.fg.style.border = "none";
-      this.fg.style.margin = "0px";
+    this.wrapper.appendChild(this.bk);
+    this.fg = document.createElement("div");
+    this.fg.style.position = "relative";
+    this.fg.style.width = "100%";
+    this.fg.style.height = "100%";
+    this.fg.style.overflow = "hidden";
+    this.wrapper.appendChild(this.fg);
+  }
+
+  // Get the current image source based on display type
+  let images = [];
+  let currentIndex = 0;
   
-      // Get the current image
-      const imageSrc = images[currentIndex];
-      
-      if (imageSrc) {
-        // Create img tag element
-        const img = document.createElement("img");
+  if (this.currentDisplay === "family") {
+    images = this.familyImages;
+    currentIndex = this.familyIndex;
+  } else if (this.currentDisplay === "camera") {
+    images = this.cameraImages;
+    currentIndex = this.cameraIndex;
+  }
   
-        // Important: Set the image to be invisible and absolutely positioned
-        // but DON'T give it a specific position yet - this is key to preventing the right-side flash
-        img.style.position = "absolute";
-        img.style.opacity = 0;
-        img.style.transition = `opacity ${this.config.transition/1000}s`;
-        
-        // Hide image completely until it's sized correctly
-        img.style.visibility = "hidden";
-        
-        // Create a hidden container for the new image that won't affect layout
-        const imgContainer = document.createElement("div");
-        imgContainer.style.position = "absolute";
-        imgContainer.style.top = 0;
-        imgContainer.style.left = 0;
-        imgContainer.style.right = 0;
-        imgContainer.style.bottom = 0;
-        imgContainer.style.zIndex = -1;
-        imgContainer.style.overflow = "hidden";
-        imgContainer.appendChild(img);
-        
-        // Add the container to the DOM
-        this.fg.appendChild(imgContainer);
-        
-        // Now set the source to start loading
-        img.src = imageSrc;
-        
-        // Set the image load error handler
-        img.onerror = (evt) => {
-          const eventImage = evt.currentTarget;
-          console.error(`Image load failed: ${eventImage.src}`);
-          
-          // Clean up the container
-          if (imgContainer.parentNode) {
-            imgContainer.parentNode.removeChild(imgContainer);
-          }
-          
-          // Skip to next image
-          if (this.currentDisplay === "family") {
-            this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
-          } else if (this.currentDisplay === "camera") {
-            this.cameraIndex = (this.cameraIndex + 1) % this.cameraImages.length;
-          }
-          
-          this.isImageLoading = false;
-          this.updateDom();
-        };
-        
-        // Set the onload event handler - this is the key to smooth transitions
-        img.onload = (evt) => {
-          // Get the image of the event
-          const eventImage = evt.currentTarget;
-          
-          // What's the size of this image and its parent
-          const w = eventImage.width;
-          const h = eventImage.height;
-          const tw = document.body.clientWidth + parseInt(m, 10) * 2;
-          const th = document.body.clientHeight + parseInt(m, 10) * 2;
-  
-          // Compute the new size and offsets
-          const result = self.scaleImage(w, h, tw, th, true);
-  
-          // Adjust the image size
-          eventImage.width = result.width;
-          eventImage.height = result.height;
-  
-          // Now properly position the image
-          eventImage.style.left = `${result.targetleft}px`;
-          eventImage.style.top = `${result.targettop}px`;
-          
-          // Remove imgContainer and move the image to the main container
-          imgContainer.parentNode.removeChild(imgContainer);
-          
-          // Set background based on chosen style BEFORE making the new image visible
-          if (self.config.backgroundStyle === "blur") {
-            self.bk.style.backgroundImage = `url(${eventImage.src})`;
-          } else if (self.config.backgroundStyle === "color") {
-            self.bk.style.backgroundImage = "none";
-            self.bk.style.backgroundColor = self.config.backgroundColor;
-          }
-          
-          // Make sure old images are faded out first
-          const existingImages = self.fg.querySelectorAll("img");
-          existingImages.forEach(oldImg => {
-            oldImg.style.opacity = 0;
-          });
-          
-          // Now add the new image to the main container
-          self.fg.appendChild(eventImage);
-          
-          // Make the image visible again
-          eventImage.style.visibility = "visible";
-          
-          // Now fade in the new image
-          setTimeout(() => {
-            eventImage.style.opacity = self.config.opacity;
-            
-            // After the transition completes, remove any old images
-            setTimeout(() => {
-              // Remove all images except the last one
-              const allImages = self.fg.querySelectorAll("img");
-              for (let i = 0; i < allImages.length - 1; i++) {
-                if (allImages[i].parentNode === self.fg) {
-                  self.fg.removeChild(allImages[i]);
-                }
-              }
-              
-              // Allow loading the next image
-              self.isImageLoading = false;
-            }, self.config.transition + 100); // Wait slightly longer than transition time
-            
-          }, 50); // Short delay to ensure browser has rendered the new properties
-        };
-      }
-    }
-    
+  // Make sure we have valid images and index
+  if (images.length === 0 || currentIndex >= images.length) {
+    console.error(`No valid images found for ${this.currentDisplay} display`);
     return this.wrapper;
   }
+  
+  // Only proceed if we have images and aren't already loading one
+  if (images.length > 0 && currentIndex < images.length && !this.isImageLoading) {
+    this.isImageLoading = true;
+    
+    // Log for debugging
+    console.log(`Loading ${this.currentDisplay} image at index ${currentIndex}`);
+    
+    // Get the size of the margin, if any, we want to be full screen
+    const m = window
+      .getComputedStyle(document.body, null)
+      .getPropertyValue("margin-top");
+    
+    // Set the style for the containing div
+    this.fg.style.border = "none";
+    this.fg.style.margin = "0px";
+
+    // Get the current image
+    const imageSrc = images[currentIndex];
+    
+    if (imageSrc) {
+      // Create img tag element
+      const img = document.createElement("img");
+      img.className = "blessed-image"; // Adding the proper class
+
+      // Important: Set the image to be invisible and absolutely positioned
+      img.style.position = "absolute";
+      img.style.opacity = 0;
+      img.style.transition = `opacity ${this.config.transition/1000}s`;
+      
+      // Hide image completely until it's sized correctly
+      img.style.visibility = "hidden";
+      
+      // Add a timestamp for debugging
+      img.dataset.timestamp = new Date().toISOString();
+      
+      // Create a hidden container for the new image that won't affect layout
+      const imgContainer = document.createElement("div");
+      imgContainer.style.position = "absolute";
+      imgContainer.style.top = 0;
+      imgContainer.style.left = 0;
+      imgContainer.style.right = 0;
+      imgContainer.style.bottom = 0;
+      imgContainer.style.zIndex = -1;
+      imgContainer.style.overflow = "hidden";
+      imgContainer.appendChild(img);
+      
+      // Add the container to the DOM
+      this.fg.appendChild(imgContainer);
+      
+      // Add error logging for debugging
+      img.onerror = (evt) => {
+        const eventImage = evt.currentTarget;
+        console.error(`Image load failed: ${eventImage.src}`);
+        
+        // Clean up the container
+        if (imgContainer.parentNode) {
+          imgContainer.parentNode.removeChild(imgContainer);
+        }
+        
+        // Skip to next image
+        if (this.currentDisplay === "family") {
+          this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
+        } else if (this.currentDisplay === "camera") {
+          this.cameraIndex = (this.cameraIndex + 1) % this.cameraImages.length;
+        }
+        
+        this.isImageLoading = false;
+        this.updateDom();
+      };
+      
+      // Set the onload event handler - this is the key to smooth transitions
+      img.onload = (evt) => {
+        // Get the image of the event
+        const eventImage = evt.currentTarget;
+        
+        console.log(`Image loaded successfully: ${eventImage.src}`);
+        
+        // What's the size of this image and its parent
+        const w = eventImage.width;
+        const h = eventImage.height;
+        const tw = document.body.clientWidth + parseInt(m, 10) * 2;
+        const th = document.body.clientHeight + parseInt(m, 10) * 2;
+
+        // Compute the new size and offsets
+        const result = self.scaleImage(w, h, tw, th, true);
+
+        // Adjust the image size
+        eventImage.width = result.width;
+        eventImage.height = result.height;
+
+        // Now properly position the image
+        eventImage.style.left = `${result.targetleft}px`;
+        eventImage.style.top = `${result.targettop}px`;
+        
+        // Remove imgContainer and move the image to the main container
+        imgContainer.parentNode.removeChild(imgContainer);
+        
+        // Set background based on chosen style BEFORE making the new image visible
+        if (self.config.backgroundStyle === "blur") {
+          self.bk.style.backgroundImage = `url(${eventImage.src})`;
+        } else if (self.config.backgroundStyle === "color") {
+          self.bk.style.backgroundImage = "none";
+          self.bk.style.backgroundColor = self.config.backgroundColor;
+        }
+        
+        // Make sure old images are faded out first
+        const existingImages = self.fg.querySelectorAll("img");
+        existingImages.forEach(oldImg => {
+          if (oldImg !== eventImage) {
+            oldImg.style.opacity = 0;
+            oldImg.classList.remove("visible");
+          }
+        });
+        
+        // Now add the new image to the main container
+        self.fg.appendChild(eventImage);
+        
+        // Make the image visible again
+        eventImage.style.visibility = "visible";
+        
+        // Now fade in the new image
+        setTimeout(() => {
+          eventImage.style.opacity = self.config.opacity;
+          eventImage.classList.add("visible");
+          
+          // After the transition completes, remove any old images
+          setTimeout(() => {
+            // Remove all images except the latest one
+            const allImages = self.fg.querySelectorAll("img");
+            for (let i = 0; i < allImages.length; i++) {
+              if (allImages[i] !== eventImage && allImages[i].parentNode === self.fg) {
+                console.log("Removing old image");
+                self.fg.removeChild(allImages[i]);
+              }
+            }
+            
+            // Allow loading the next image
+            self.isImageLoading = false;
+          }, self.config.transition + 100); // Wait slightly longer than transition time
+          
+        }, 50); // Short delay to ensure browser has rendered the new properties
+      };
+      
+      // Now set the source to start loading
+      img.src = imageSrc;
+    } else {
+      console.error("Invalid image source");
+      this.isImageLoading = false;
+    }
+  }
+  
+  return this.wrapper;
+}
 });
