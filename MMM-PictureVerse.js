@@ -348,8 +348,43 @@ Module.register("MMM-PictureVerse", {
     }
 
     switch (this.currentDisplay) {
+            // Updated verse display case for getRegularDom method
       case "verse":
-        wrapper.innerHTML = `<div class="verse">${this.bibleVerse || "Loading verse..."}</div>`;
+        const verseContainer = document.createElement("div");
+        verseContainer.className = "verse";
+        
+        // Split the verse into text and reference
+        let verseText = this.bibleVerse || "Loading verse...";
+        let verseReference = "";
+        
+        // Try to extract reference if it contains a dash or parenthesis
+        if (verseText.includes(" - ")) {
+          const parts = verseText.split(" - ");
+          verseText = parts[0].trim();
+          verseReference = parts[1].trim();
+        } else if (verseText.includes("(") && verseText.includes(")")) {
+          const match = verseText.match(/(.*)\s*\((.*)\)/);
+          if (match) {
+            verseText = match[1].trim();
+            verseReference = match[2].trim();
+          }
+        }
+        
+        // Create verse text element
+        const textElement = document.createElement("div");
+        textElement.className = "verse-text";
+        textElement.textContent = verseText;
+        verseContainer.appendChild(textElement);
+        
+        // Create reference element if available
+        if (verseReference) {
+          const referenceElement = document.createElement("div");
+          referenceElement.className = "verse-reference";
+          referenceElement.textContent = verseReference;
+          verseContainer.appendChild(referenceElement);
+        }
+        
+        wrapper.appendChild(verseContainer);
         break;
         
       case "family":
@@ -446,7 +481,7 @@ Module.register("MMM-PictureVerse", {
       this.fg = document.createElement("div");
       this.wrapper.appendChild(this.fg);
     }
-
+  
     // Get the current image source based on display type
     let images = [];
     let currentIndex = 0;
@@ -459,7 +494,9 @@ Module.register("MMM-PictureVerse", {
       currentIndex = this.cameraIndex;
     }
     
-    if (images.length > 0 && currentIndex < images.length) {
+    if (images.length > 0 && currentIndex < images.length && !this.isImageLoading) {
+      this.isImageLoading = true;
+      
       // Get the size of the margin, if any, we want to be full screen
       const m = window
         .getComputedStyle(document.body, null)
@@ -468,41 +505,40 @@ Module.register("MMM-PictureVerse", {
       // Set the style for the containing div
       this.fg.style.border = "none";
       this.fg.style.margin = "0px";
-
+  
       // Get the current image
       const imageSrc = images[currentIndex];
-      let img = null;
       
       if (imageSrc) {
         // Create img tag element
-        img = document.createElement("img");
-
+        const img = document.createElement("img");
+  
         // Set default position, corrected in onload handler
         img.style.left = `${0}px`;
         img.style.top = document.body.clientHeight + parseInt(m, 10) * 2;
         img.style.position = "relative";
         img.style.opacity = 0;
         img.style.transition = `opacity ${this.config.transition/1000}s`;
-
+  
         img.src = imageSrc;
         
-        // Append this image to the div
-        this.fg.appendChild(img);
-
         // Set the image load error handler
         img.onerror = (evt) => {
           const eventImage = evt.currentTarget;
           console.error(`Image load failed: ${eventImage.src}`);
+          
           // Skip to next image
           if (this.currentDisplay === "family") {
             this.familyIndex = (this.familyIndex + 1) % this.familyImages.length;
           } else if (this.currentDisplay === "camera") {
             this.cameraIndex = (this.cameraIndex + 1) % this.cameraImages.length;
           }
+          
+          this.isImageLoading = false;
           this.updateDom();
         };
         
-        // Set the onload event handler
+        // Set the onload event handler - this is the key to smooth transitions
         img.onload = (evt) => {
           // Get the image of the event
           const eventImage = evt.currentTarget;
@@ -512,39 +548,49 @@ Module.register("MMM-PictureVerse", {
           const h = eventImage.height;
           const tw = document.body.clientWidth + parseInt(m, 10) * 2;
           const th = document.body.clientHeight + parseInt(m, 10) * 2;
-
+  
           // Compute the new size and offsets
           const result = self.scaleImage(w, h, tw, th, true);
-
+  
           // Adjust the image size
           eventImage.width = result.width;
           eventImage.height = result.height;
-
+  
           // Adjust the image position
           eventImage.style.left = `${result.targetleft}px`;
           eventImage.style.top = `${result.targettop}px`;
-
-          // If another image was already displayed
-          const c = self.fg.childElementCount;
-          if (c > 1) {
-            for (let i = 0; i < c - 1; i++) {
-              // Hide it
-              self.fg.firstChild.style.opacity = 0;
-              // Remove the image element from the div
-              self.fg.removeChild(self.fg.firstChild);
-            }
-          }
           
-          // Show the current image
-          self.fg.firstChild.style.opacity = self.config.opacity;
-
-          // Set background based on chosen style
+          // Append this image to the div - but AFTER setting all properties
+          this.fg.appendChild(img);
+  
+          // Set background based on chosen style BEFORE making the new image visible
           if (self.config.backgroundStyle === "blur") {
-            self.bk.style.backgroundImage = `url(${self.fg.firstChild.src})`;
+            self.bk.style.backgroundImage = `url(${eventImage.src})`;
           } else if (self.config.backgroundStyle === "color") {
             self.bk.style.backgroundImage = "none";
             self.bk.style.backgroundColor = self.config.backgroundColor;
           }
+          
+          // Now make the new image visible with a fade in
+          setTimeout(() => {
+            eventImage.style.opacity = self.config.opacity;
+            
+            // After the transition completes, remove any old images
+            setTimeout(() => {
+              // If there are multiple images displayed
+              const c = self.fg.childElementCount;
+              if (c > 1) {
+                // Keep the most recently added and remove the rest
+                for (let i = 0; i < c - 1; i++) {
+                  self.fg.removeChild(self.fg.firstChild);
+                }
+              }
+              
+              // Allow loading the next image
+              self.isImageLoading = false;
+            }, self.config.transition + 100); // Wait slightly longer than transition time
+            
+          }, 50); // Short delay to ensure browser has rendered the new properties
         };
       }
     }

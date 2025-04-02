@@ -22,15 +22,31 @@
   opacity: 1;
   z-index: 1;
 }
-
 .verse {
   color: white;
   font-size: 2em;
   text-align: center;
-  padding: 20px;
+  padding: 40px;
   max-width: 80%;
   margin: 0 auto;
-  line-height: 1.4;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 15px;
+}
+
+.verse-text {
+  margin-bottom: 25px;
+  font-weight: normal;
+}
+
+.verse-reference {
+  font-size: 0.7em;
+  opacity: 0.9;
+  font-style: italic;
 }
 
 .camera-container {
