@@ -240,12 +240,21 @@ Module.register("MMM-PictureVerse", {
         console.log("No camera images received");
       }
       
-      // Store motion videos if available
+      // Store motion videos and images if available
       if (payload.videos && payload.videos.length > 0) {
         this.motionVideos = payload.videos;
+        console.log(`Received ${this.motionVideos.length} motion videos`);
+        
+        // Update images too if available
+        if (payload.images && payload.images.length > 0) {
+          this.cameraImages = payload.images;
+          console.log(`Updated with ${this.cameraImages.length} camera images`);
+        }
         
         // Only interrupt current flow if prioritizing motion clips
         if (this.config.prioritizeMotionClips) {
+          console.log("Motion detected! Interrupting current display to show motion clips");
+          
           // Clear any existing motion timer
           if (this.motionTimer) {
             clearTimeout(this.motionTimer);
@@ -262,6 +271,7 @@ Module.register("MMM-PictureVerse", {
           
           // Set timer to return to previous state
           this.motionTimer = setTimeout(() => {
+            console.log("Motion display time ended, returning to previous state");
             this.showingMotion = false;
             this.currentDisplay = this.previousDisplay;
             
@@ -278,9 +288,6 @@ Module.register("MMM-PictureVerse", {
           }, this.config.motionClipDisplayTime);
         }
       }
-      
-      this.checkAllLoaded();
-      this.updateDom();
     }
 
     if (notification === "FAMILY_IMAGES") {

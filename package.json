@@ -6,7 +6,9 @@
   "scripts": {
     "setup-blink": "./setup-blink.sh",
     "sync-dropbox": "./sync-dropbox.sh",
-    "postinstall": "npm install chokidar && ./setup-venv.sh"
+    "postinstall": "npm install chokidar && ./setup-venv.sh",
+    "start-monitor": "./start-blink-monitor.sh",
+    "stop-monitor": "./stop-blink-monitor.sh"
   },
   "dependencies": {
     "chokidar": "^3.5.3"

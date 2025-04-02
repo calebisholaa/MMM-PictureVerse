@@ -9,6 +9,9 @@ module.exports = NodeHelper.create({
     console.log("MMM-PictureVerse helper started");
     this.setupWatchers();
     
+    // Set up the motion detection monitor
+    this.startBlinkMonitor();
+
     // Set up periodic Dropbox sync (every 1 minute)
     this.dropboxInterval = setInterval(() => {
       this.syncDropbox((newFilesDownloaded) => {
@@ -17,6 +20,31 @@ module.exports = NodeHelper.create({
     }, 1 * 60 * 1000); // 1 minute
   },
 
+  startBlinkMonitor() {
+    const { exec } = require("child_process");
+    const monitorScript = path.join(__dirname, "start-blink-monitor.sh");
+    
+    // Make sure the script is executable
+    exec(`chmod +x ${monitorScript}`, (error) => {
+      if (error) {
+        console.error(`Error making monitor script executable: ${error}`);
+        return;
+      }
+      
+      // Start the Blink monitor
+      exec(monitorScript, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error starting Blink monitor: ${error}`);
+          console.error(stderr);
+          return;
+        }
+        
+        console.log("Blink motion monitor started successfully");
+        console.log(stdout);
+      });
+    });
+  },
+  
   setupWatchers() {
     // Set up a watcher for the motion detection folder
     const mediaPath = path.join(__dirname, "python", "media");
