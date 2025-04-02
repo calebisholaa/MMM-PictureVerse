@@ -11,8 +11,8 @@ module.exports = NodeHelper.create({
     
     // Set up periodic Dropbox sync (every 1 minute)
     this.dropboxInterval = setInterval(() => {
-      this.syncDropbox(() => {
-        this.loadFamilyImages();
+      this.syncDropbox((newFilesDownloaded) => {
+        this.loadFamilyImages(newFilesDownloaded);
       });
     }, 1 * 60 * 1000); // 1 minute
   },
@@ -65,12 +65,18 @@ module.exports = NodeHelper.create({
     this.picturesWatcher.on("all", (event) => {
       if (event === "add" || event === "unlink") {
         console.log(`Pictures folder ${event} detected, updating image list`);
-        this.loadFamilyImages();
+        // Pass true to indicate a new upload was detected
+        this.loadFamilyImages(event === "add");
       }
     });
   },
   
-  loadFamilyImages() {
+  /**
+   * Load family images from the Pictures folder, sort by creation time, 
+   * and send to the client with a flag if this was triggered by a new upload
+   * @param {boolean} newUploadDetected - Whether this refresh was triggered by a new file upload
+   */
+  loadFamilyImages(newUploadDetected = false) {
     // Load family images from the Pictures folder
     const picturesPath = path.join(__dirname, "python", "Pictures");
     if (!fs.existsSync(picturesPath)) {
@@ -79,15 +85,36 @@ module.exports = NodeHelper.create({
       return;
     }
 
-    const files = fs.readdirSync(picturesPath)
+    const fileList = fs.readdirSync(picturesPath)
       .filter(f => f.toLowerCase().endsWith(".jpg") || 
-                   f.toLowerCase().endsWith(".jpeg") || 
-                   f.toLowerCase().endsWith(".png") ||
-                   f.toLowerCase().endsWith(".gif"))
-      .map(f => `modules/MMM-PictureVerse/python/Pictures/${f}`);
+                  f.toLowerCase().endsWith(".jpeg") || 
+                  f.toLowerCase().endsWith(".png") ||
+                  f.toLowerCase().endsWith(".gif"));
+    
+    // Get file stats to sort by creation time (newest first)
+    const fileStats = fileList.map(filename => {
+      const fullPath = path.join(picturesPath, filename);
+      const stats = fs.statSync(fullPath);
+      return {
+        filename: filename,
+        path: `modules/MMM-PictureVerse/python/Pictures/${filename}`,
+        ctime: stats.ctimeMs  // Creation time in milliseconds
+      };
+    });
+    
+    // Sort files by creation time, newest first
+    fileStats.sort((a, b) => b.ctime - a.ctime);
+    
+    // Extract just the paths for sending to the client
+    const files = fileStats.map(file => file.path);
 
     console.log(`Found ${files.length} family images`);
-    this.sendSocketNotification("FAMILY_IMAGES", files);
+    
+    // Send the sorted list and flag if this was triggered by a new image
+    this.sendSocketNotification("FAMILY_IMAGES", {
+      images: files,
+      newUpload: newUploadDetected
+    });
   },
   
   notifyMotionDetection() {
@@ -209,11 +236,13 @@ module.exports = NodeHelper.create({
       if (error) {
         console.error(`Error executing Dropbox.py: ${error}`);
         console.error(stderr);
+        if (callback) callback(false);
       } else {
         console.log("Dropbox sync output:", stdout);
+        // Check if any files were downloaded
+        const filesDownloaded = stdout.includes("Downloaded") && !stdout.includes("Downloaded 0 new files");
+        if (callback) callback(filesDownloaded);
       }
-      
-      if (callback) callback();
     });
   },
 

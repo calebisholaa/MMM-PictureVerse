@@ -1,5 +1,6 @@
 {
     "access_token": "your_token_here",
-    "dropbox_folder": "/Photos"
+    "dropbox_folder": "/Photos",
+    "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif"]
   }
   
