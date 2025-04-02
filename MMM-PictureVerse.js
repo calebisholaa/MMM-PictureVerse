@@ -350,6 +350,13 @@ Module.register("MMM-PictureVerse", {
     switch (this.currentDisplay) {
             // Updated verse display case for getRegularDom method
       case "verse":
+        // Create an outer wrapper for positioning
+        const verseWrapper = document.createElement("div");
+        verseWrapper.style.position = "relative";
+        verseWrapper.style.width = "100%";
+        verseWrapper.style.height = "100%";
+        
+        // Create the verse container
         const verseContainer = document.createElement("div");
         verseContainer.className = "verse";
         
@@ -384,7 +391,8 @@ Module.register("MMM-PictureVerse", {
           verseContainer.appendChild(referenceElement);
         }
         
-        wrapper.appendChild(verseContainer);
+        verseWrapper.appendChild(verseContainer);
+        wrapper.appendChild(verseWrapper);
         break;
         
       case "family":
@@ -479,6 +487,10 @@ Module.register("MMM-PictureVerse", {
       
       this.wrapper.appendChild(this.bk);
       this.fg = document.createElement("div");
+      this.fg.style.position = "relative";
+      this.fg.style.width = "100%";
+      this.fg.style.height = "100%";
+      this.fg.style.overflow = "hidden";
       this.wrapper.appendChild(this.fg);
     }
   
@@ -513,19 +525,41 @@ Module.register("MMM-PictureVerse", {
         // Create img tag element
         const img = document.createElement("img");
   
-        // Set default position, corrected in onload handler
-        img.style.left = `${0}px`;
-        img.style.top = document.body.clientHeight + parseInt(m, 10) * 2;
-        img.style.position = "relative";
+        // Important: Set the image to be invisible and absolutely positioned
+        // but DON'T give it a specific position yet - this is key to preventing the right-side flash
+        img.style.position = "absolute";
         img.style.opacity = 0;
         img.style.transition = `opacity ${this.config.transition/1000}s`;
-  
+        
+        // Hide image completely until it's sized correctly
+        img.style.visibility = "hidden";
+        
+        // Create a hidden container for the new image that won't affect layout
+        const imgContainer = document.createElement("div");
+        imgContainer.style.position = "absolute";
+        imgContainer.style.top = 0;
+        imgContainer.style.left = 0;
+        imgContainer.style.right = 0;
+        imgContainer.style.bottom = 0;
+        imgContainer.style.zIndex = -1;
+        imgContainer.style.overflow = "hidden";
+        imgContainer.appendChild(img);
+        
+        // Add the container to the DOM
+        this.fg.appendChild(imgContainer);
+        
+        // Now set the source to start loading
         img.src = imageSrc;
         
         // Set the image load error handler
         img.onerror = (evt) => {
           const eventImage = evt.currentTarget;
           console.error(`Image load failed: ${eventImage.src}`);
+          
+          // Clean up the container
+          if (imgContainer.parentNode) {
+            imgContainer.parentNode.removeChild(imgContainer);
+          }
           
           // Skip to next image
           if (this.currentDisplay === "family") {
@@ -556,13 +590,13 @@ Module.register("MMM-PictureVerse", {
           eventImage.width = result.width;
           eventImage.height = result.height;
   
-          // Adjust the image position
+          // Now properly position the image
           eventImage.style.left = `${result.targetleft}px`;
           eventImage.style.top = `${result.targettop}px`;
           
-          // Append this image to the div - but AFTER setting all properties
-          this.fg.appendChild(img);
-  
+          // Remove imgContainer and move the image to the main container
+          imgContainer.parentNode.removeChild(imgContainer);
+          
           // Set background based on chosen style BEFORE making the new image visible
           if (self.config.backgroundStyle === "blur") {
             self.bk.style.backgroundImage = `url(${eventImage.src})`;
@@ -571,18 +605,29 @@ Module.register("MMM-PictureVerse", {
             self.bk.style.backgroundColor = self.config.backgroundColor;
           }
           
-          // Now make the new image visible with a fade in
+          // Make sure old images are faded out first
+          const existingImages = self.fg.querySelectorAll("img");
+          existingImages.forEach(oldImg => {
+            oldImg.style.opacity = 0;
+          });
+          
+          // Now add the new image to the main container
+          self.fg.appendChild(eventImage);
+          
+          // Make the image visible again
+          eventImage.style.visibility = "visible";
+          
+          // Now fade in the new image
           setTimeout(() => {
             eventImage.style.opacity = self.config.opacity;
             
             // After the transition completes, remove any old images
             setTimeout(() => {
-              // If there are multiple images displayed
-              const c = self.fg.childElementCount;
-              if (c > 1) {
-                // Keep the most recently added and remove the rest
-                for (let i = 0; i < c - 1; i++) {
-                  self.fg.removeChild(self.fg.firstChild);
+              // Remove all images except the last one
+              const allImages = self.fg.querySelectorAll("img");
+              for (let i = 0; i < allImages.length - 1; i++) {
+                if (allImages[i].parentNode === self.fg) {
+                  self.fg.removeChild(allImages[i]);
                 }
               }
               
