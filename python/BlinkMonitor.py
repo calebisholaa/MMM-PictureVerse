@@ -35,7 +35,7 @@ async def monitor_motion(blink):
                     
                     # Wait for image and video to be available
                     print("Waiting for media to process...")
-                    await asyncio.sleep(10)  # Adjust wait time if needed
+                    await asyncio.sleep(2)  # Adjust wait time if needed
                     await blink.refresh()
                     
                     # Save snapshot image

@@ -263,6 +263,9 @@ Module.register("MMM-PictureVerse", {
           // Remember current display state
           this.previousDisplay = this.currentDisplay;
           
+          // Reset motion start time for time-based looping
+          this.motionStartTime = Date.now();
+          
           // Switch to showing motion clips
           this.currentDisplay = "motion";
           this.showingMotion = true;
@@ -274,6 +277,7 @@ Module.register("MMM-PictureVerse", {
             console.log("Motion display time ended, returning to previous state");
             this.showingMotion = false;
             this.currentDisplay = this.previousDisplay;
+            this.motionStartTime = null; // Reset the timer
             
             // If returning to family display, make sure we restart the family timer
             if (this.previousDisplay === "family") {
@@ -288,6 +292,9 @@ Module.register("MMM-PictureVerse", {
           }, this.config.motionClipDisplayTime);
         }
       }
+      
+      this.checkAllLoaded();
+      this.updateDom();
     }
 
     if (notification === "FAMILY_IMAGES") {
@@ -550,34 +557,110 @@ Module.register("MMM-PictureVerse", {
         }
         break;
         
-      case "motion":
-        if (this.motionVideos.length > 0) {
-          const container = document.createElement("div");
-          container.className = "motion-container";
+     // This should replace the 'motion' case in your getRegularDom method
+  case "motion":
+    if (this.motionVideos.length > 0) {
+      const container = document.createElement("div");
+      container.className = "motion-container";
       
-          const video = document.createElement("video");
-          video.src = this.motionVideos[this.videoIndex];
-          video.controls = true;
-          video.autoplay = true;
-          video.loop = false;
-          video.className = "blessed-image visible";
-          
-          // Center the video
-          video.style.position = "relative";
-          video.style.left = "auto";
-          video.style.top = "auto";
+      // Add a motion alert indicator
+      const alertBanner = document.createElement("div");
+      alertBanner.textContent = "Motion Detected";
+      alertBanner.style.position = "absolute";
+      alertBanner.style.top = "10px";
+      alertBanner.style.left = "50%";
+      alertBanner.style.transform = "translateX(-50%)";
+      alertBanner.style.backgroundColor = "rgba(255, 0, 0, 0.7)";
+      alertBanner.style.color = "white";
+      alertBanner.style.padding = "5px 15px";
+      alertBanner.style.borderRadius = "5px";
+      alertBanner.style.zIndex = "100";
+      alertBanner.className = "motion-alert";
+      container.appendChild(alertBanner);
+  
+      // Create the video element
+      const video = document.createElement("video");
+      video.src = this.motionVideos[this.videoIndex];
+      video.autoplay = true;  // Enable autoplay
+      video.muted = true;     // Mute to ensure autoplay works in all browsers
+      video.controls = false; // Hide controls for cleaner appearance
+      video.loop = false;     // We'll handle looping with our own logic
+      video.className = "blessed-image visible";
       
-          video.onended = () => {
+      // Create a counter for loop tracking
+      video.dataset.loopCount = "0";
+      
+      // Center the video
+      video.style.position = "relative";
+      video.style.left = "auto";
+      video.style.top = "auto";
+      
+      // Add timestamp overlay
+      const timestamp = document.createElement("div");
+      timestamp.className = "timestamp";
+      
+      // Extract timestamp from filename if possible
+      const match = this.motionVideos[this.videoIndex].match(/(\d{8}_\d{6})/);
+      if (match) {
+        const tsString = match[1];
+        // Format: YYYYMMDD_HHMMSS to YYYY-MM-DD HH:MM:SS
+        const formattedTime = `${tsString.slice(0,4)}-${tsString.slice(4,6)}-${tsString.slice(6,8)} ${tsString.slice(9,11)}:${tsString.slice(11,13)}:${tsString.slice(13,15)}`;
+        timestamp.textContent = formattedTime;
+      } else {
+        // If no timestamp in filename, use current time
+        timestamp.textContent = new Date().toLocaleTimeString();
+      }
+      
+      container.appendChild(timestamp);
+  
+      // Handle video ended event - implement looping
+      video.onended = () => {
+        // Increment the play count
+        const currentCount = parseInt(video.dataset.loopCount);
+        video.dataset.loopCount = (currentCount + 1).toString();
+        
+        // Option 1: Loop specific number of times (e.g., twice)
+        if (currentCount < 1) {  // This will play 2 times total (0 and 1)
+          // Restart the video
+          video.currentTime = 0;
+          video.play().catch(e => console.log("Error replaying video:", e));
+        } else {
+          // Move to the next video if available
+          if (this.motionVideos.length > 1) {
             this.videoIndex = (this.videoIndex + 1) % this.motionVideos.length;
             this.updateDom();
-          };
-      
-          container.appendChild(video);
-          wrapper.appendChild(container);
-        } else {
-          wrapper.innerHTML = "No motion clips available";
+          }
         }
-        break;
+        
+        // Option 2: Alternative - if you prefer time-based looping
+        /*
+        // Calculate if we still have time left within motionClipDisplayTime
+        const elapsedTime = Date.now() - this.motionStartTime;
+        if (elapsedTime < this.config.motionClipDisplayTime) {
+          // We still have time, replay the video
+          video.currentTime = 0;
+          video.play().catch(e => console.log("Error replaying video:", e));
+        } else {
+          // Time is up, move to next video if available
+          if (this.motionVideos.length > 1) {
+            this.videoIndex = (this.videoIndex + 1) % this.motionVideos.length;
+            this.updateDom();
+          }
+        }
+        */
+      };
+  
+      container.appendChild(video);
+      wrapper.appendChild(container);
+      
+      // Store the start time for time-based looping approach
+      if (!this.motionStartTime) {
+        this.motionStartTime = Date.now();
+      }
+    } else {
+      wrapper.innerHTML = "No motion clips available";
+    }
+    break;
         
       default:
         wrapper.innerHTML = "Loading...";
