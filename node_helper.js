@@ -19,15 +19,13 @@ module.exports = NodeHelper.create({
       });
     }, 1 * 60 * 1000); // 1 minute
   },
-
   startBlinkMonitor() {
     const path = require("path");
     const { exec } = require("child_process");
     const fs = require("fs");
     
-    // Path to the BlinkMonitor.py script
-    const monitorScript = path.join(__dirname, "python", "BlinkMonitor.py");
-    const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+    // Path to the run script
+    const runScript = path.join(__dirname, "run-monitor.sh");
     
     // Check if Blink credentials exist
     const credsPath = path.join(__dirname, "python", "creds.json");
@@ -38,101 +36,39 @@ module.exports = NodeHelper.create({
     
     console.log("Starting Blink motion monitor...");
     
-    // Create logs directory if it doesn't exist
-    const logsDir = path.join(__dirname, "logs");
-    if (!fs.existsSync(logsDir)) {
-      fs.mkdirSync(logsDir, { recursive: true });
-    }
-    
-    // Check if there's already a monitor process running
-    const pidFile = path.join(__dirname, ".blink_monitor.pid");
-    if (fs.existsSync(pidFile)) {
-      try {
-        const pid = fs.readFileSync(pidFile, "utf8").trim();
-        // Check if process is still running
-        const checkCmd = process.platform === "win32" ? 
-          `tasklist /FI "PID eq ${pid}" | find "${pid}"` :
-          `ps -p ${pid} -o pid=`;
-        
-        exec(checkCmd, (error, stdout) => {
-          // If process not running or error checking, start a new one
-          if (error || !stdout.includes(pid)) {
-            this.launchBlinkMonitor(pythonExec, monitorScript, pidFile);
-          } else {
-            console.log(`Blink monitor already running with PID ${pid}`);
-          }
-        });
-      } catch (e) {
-        console.error("Error checking existing monitor process:", e);
-        this.launchBlinkMonitor(pythonExec, monitorScript, pidFile);
+    // Make sure the script is executable
+    exec(`chmod +x ${runScript}`, (error) => {
+      if (error) {
+        console.error(`Error making run script executable: ${error}`);
+        return;
       }
-    } else {
-      this.launchBlinkMonitor(pythonExec, monitorScript, pidFile);
-    }
-  },
-  
-  launchBlinkMonitor(pythonExec, monitorScript, pidFile) {
-    const { spawn } = require("child_process");
-    const fs = require("fs");
-    const path = require("path");
-    
-    // Create log file
-    const logFile = path.join(__dirname, "logs", "blink_monitor.log");
-    const logStream = fs.createWriteStream(logFile, { flags: "a" });
-    
-    // Log startup
-    const startMessage = `\n--- Starting Blink Monitor: ${new Date().toISOString()} ---\n`;
-    logStream.write(startMessage);
-    
-    try {
-      // Start the monitor as a detached process
-      const monitor = spawn(pythonExec, [monitorScript], {
-        detached: true,
-        stdio: ["ignore", logStream, logStream]
+      
+      // Execute the wrapper script
+      exec(runScript, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`Error starting Blink monitor: ${error}`);
+          if (stderr) console.error(stderr);
+          return;
+        }
+        
+        console.log("Blink motion monitor started successfully");
+        if (stdout) console.log(stdout);
       });
-      
-      // Store PID
-      fs.writeFileSync(pidFile, monitor.pid.toString());
-      
-      // Don't wait for process
-      monitor.unref();
-      
-      console.log(`Blink monitor started with PID ${monitor.pid}`);
-      console.log(`Log file: ${logFile}`);
-    } catch (e) {
-      console.error("Failed to start Blink monitor:", e);
-      logStream.write(`Failed to start: ${e.message}\n`);
-    }
+    });
   },
   
-  // Update the stop function to be available as well
   stopBlinkMonitor() {
-    const fs = require("fs");
-    const path = require("path");
     const { exec } = require("child_process");
+    console.log("Stopping Blink motion monitor...");
     
-    const pidFile = path.join(__dirname, ".blink_monitor.pid");
-    if (fs.existsSync(pidFile)) {
-      try {
-        const pid = fs.readFileSync(pidFile, "utf8").trim();
-        const killCmd = process.platform === "win32" ? 
-          `taskkill /PID ${pid} /F` : 
-          `kill ${pid}`;
-        
-        exec(killCmd, (error) => {
-          if (error) {
-            console.error(`Error stopping Blink monitor: ${error}`);
-          } else {
-            console.log(`Blink monitor (PID: ${pid}) stopped successfully`);
-            fs.unlinkSync(pidFile);
-          }
-        });
-      } catch (e) {
-        console.error("Error reading PID file:", e);
+    exec("pkill -f \"python/BlinkMonitor.py\"", (error, stdout, stderr) => {
+      if (error && error.code !== 1) { // Code 1 just means no processes found
+        console.error(`Error stopping Blink monitor: ${error}`);
+        return;
       }
-    } else {
-      console.log("No running Blink monitor found.");
-    }
+      
+      console.log("Blink motion monitor stopped");
+    });
   },
 
   setupWatchers() {
@@ -351,7 +287,7 @@ module.exports = NodeHelper.create({
     if (notification === "STOP_BLINK_MONITOR") {
       this.stopBlinkMonitor();
     }
-    
+
   },
 
   syncDropbox(callback) {

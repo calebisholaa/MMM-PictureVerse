@@ -16,7 +16,7 @@ CREDS_FILE = os.path.join(SCRIPT_DIR, "creds.json")
 os.makedirs(MEDIA_FOLDER, exist_ok=True)
 
 async def monitor_motion(blink):
-    print("📹 Monitoring for motion...")
+    print("Monitoring for motion...")
     
     while True:
         try:
@@ -77,33 +77,44 @@ async def start():
         print("Please run BlinkSetup.py first to set up Blink credentials.")
         return
     
-    async with ClientSession() as session:
-        try:
-            # Load credentials
-            with open(CREDS_FILE, "r") as f:
-                creds = json.load(f)
-            
-            # Initialize Blink
-            auth = Auth(creds, no_prompt=True)
-            blink = Blink(session=session)
-            blink.auth = auth
-            
-            # Start Blink session
-            await blink.start()
-            await blink.refresh()
-            
-            # Show connected cameras
-            print(f"Connected to Blink account: {blink.auth.login_attributes.get('email', 'Unknown')}")
-            print(f"Found {len(blink.cameras)} cameras:")
-            for name in blink.cameras.keys():
-                print(f"  - {name}")
-            
-            # Start monitoring
-            await monitor_motion(blink)
-            
-        except Exception as e:
-            print(f"Error starting Blink monitor: {e}")
-            sys.exit(1)
+    session = None
+    try:
+        # Create session
+        session = ClientSession()
+        
+        # Load credentials
+        with open(CREDS_FILE, "r") as f:
+            creds = json.load(f)
+        
+        # Initialize Blink
+        auth = Auth(creds, no_prompt=True)
+        blink = Blink(session=session)
+        blink.auth = auth
+        
+        # Start Blink session
+        await blink.start()
+        await blink.refresh()
+        
+        # Show connected cameras
+        print(f"Connected to Blink account: {blink.auth.login_attributes.get('email', 'Unknown')}")
+        print(f"Found {len(blink.cameras)} cameras:")
+        for name in blink.cameras.keys():
+            print(f"  - {name}")
+        
+        # Start monitoring
+        await monitor_motion(blink)
+        
+    except Exception as e:
+        print(f"Error starting Blink monitor: {e}")
+        sys.exit(1)
+    finally:
+        # Ensure session is closed properly
+        if session:
+            try:
+                await session.close()
+                print("Session closed properly")
+            except Exception as e:
+                print(f"Error closing session: {e}")
 
 if __name__ == "__main__":
     try:
