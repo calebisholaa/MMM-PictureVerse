@@ -1,10 +1,10 @@
 # MMM-PictureVerse
 
-A MagicMirror² module that displays:
+A MagicMirror² module that creates a beautiful display experience with:
 - Bible verses of the day
 - Blink security camera feeds
 - Family photos from your Dropbox
-- Motion detection video clips from Blink cameras (shown immediately when detected)
+- Automatic motion detection alerts from Blink cameras
 
 ## Features
 
@@ -15,7 +15,8 @@ A MagicMirror² module that displays:
 - **Bible Verses**: Shows a Bible verse at the start of each hour
 - **Security Cameras**: Displays feeds from your Blink security cameras, focusing on the current hour's images
 - **Family Photos**: Shows your Dropbox photos with smooth transitions
-- **Motion Detection**: Immediately shows video clips when motion is detected by your cameras
+- **Real-time Motion Detection**: Automatically monitors your Blink cameras and immediately shows video clips when motion is detected
+- **Motion Alerts**: Visual alerts when motion is detected with timestamp overlay
 - **Automatic Updates**: New photos added to Dropbox appear automatically on your mirror
 - **Dynamic Scaling**: Automatically sizes images to fit your display perfectly
 
@@ -51,7 +52,7 @@ The installation process will automatically:
 - Create a Python virtual environment
 - Install the required Python packages (dropbox, blinkpy, aiohttp)
 
-## Setting Up Dropbox
+## Setting Up Dropbox (For Family Photos)
 
 To display photos from your Dropbox account:
 
@@ -97,9 +98,9 @@ To display photos from your Dropbox account:
    npm run sync-dropbox
    ```
 
-## Setting Up Blink Cameras (Optional)
+## Setting Up Blink Cameras
 
-If you have Blink cameras and want to display their feeds:
+To enable security camera feeds and motion detection:
 
 1. Run the Blink setup script:
    ```bash
@@ -108,6 +109,11 @@ If you have Blink cameras and want to display their feeds:
 
 2. Follow the prompts to enter your Blink credentials and 2FA code
 
+3. That's it! The module will automatically:
+   - Display your camera feeds during the camera display portion of the cycle
+   - Monitor your cameras for motion in the background
+   - Immediately display motion clips when detected, with visual alerts
+
 ## How It Works
 
 The module follows a structured sequence that repeats every hour:
@@ -115,9 +121,21 @@ The module follows a structured sequence that repeats every hour:
 1. **Bible Verse (2 minutes)**: At the start of each hour, the module displays the verse of the day for 2 minutes.
 2. **Camera Images (2 minutes)**: After the verse, the module displays security camera images for 2 minutes. It prioritizes images from the current hour.
 3. **Family Photos (remainder of hour)**: For the rest of the hour, the module displays family photos from your Dropbox with smooth transitions.
-4. **Motion Detection**: If motion is detected by your Blink cameras, the video clips will temporarily interrupt the normal display.
+4. **Motion Detection**: The module continuously monitors your Blink cameras in the background. If motion is detected, it immediately interrupts the normal display to show the motion clip with a visual alert and timestamp.
 
 At the start of a new hour, the sequence begins again with a fresh verse and camera images.
+
+### Motion Detection System
+
+The built-in motion detection system works seamlessly:
+
+1. When the module starts, it automatically launches a background process that monitors your Blink cameras
+2. When motion is detected, it:
+   - Takes a snapshot of the camera view
+   - Records the motion video clip
+   - Immediately displays the video with an alert banner on your mirror
+3. After the configured display time, it returns to the normal display sequence
+4. All monitoring happens automatically in the background with no user intervention required
 
 ## Module Configuration
 
@@ -126,7 +144,7 @@ Add the module to your `config/config.js` file:
 ```javascript
 {
   module: "MMM-PictureVerse",
-  position: "fullscreen", // Recommended for photo display
+  position: "fullscreen_below", // Recommended for photo display
   config: {
     // Timing settings
     familyInterval: 30000,       // How long to show each family photo (30 sec)
@@ -148,7 +166,6 @@ Add the module to your `config/config.js` file:
     transition: 1000,            // Transition time between images (ms)
     sequential: false,            // Whether to cycle images sequentially or randomly
     alwaysShowNewestFirst: true,   // Show newest upload first, then continue with sequence
-
   }
 }
 ```
@@ -191,12 +208,29 @@ When using fullscreen mode, you can customize the background appearance:
   - Check your Blink credentials
   - Ensure your Blink cameras are online
 
+- **Motion detection not working**:
+  - Check the monitor logs: `cat ~/MagicMirror/modules/MMM-PictureVerse/logs/blink_monitor.log`
+  - Verify your Blink cameras are properly set up for motion detection in the Blink app
+  - Restart MagicMirror to restart the monitor
+
 - **Python issues**:
   - If you encounter Python-related errors, try reinstalling the virtual environment:
     ```bash
     rm -rf python/venv
     ./setup-venv.sh
     ```
+
+## Advanced: Checking Monitor Status
+
+The motion monitor runs automatically in the background. To check its status:
+
+```bash
+# View the monitor logs
+cat ~/MagicMirror/modules/MMM-PictureVerse/logs/blink_monitor.log
+
+# Check if the monitor process is running
+ps aux | grep BlinkMonitor.py
+```
 
 ## License
 
