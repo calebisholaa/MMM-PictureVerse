@@ -18,7 +18,16 @@ module.exports = NodeHelper.create({
         this.loadFamilyImages(newFilesDownloaded);
       });
     }, 1 * 60 * 1000); // 1 minute
+    
+    // Set up hourly cleanup of Blink images
+    this.cleanupInterval = setInterval(() => {
+      this.cleanupBlinkImages();
+    }, 60 * 60 * 1000); // Run every hour
+    
+    // Run initial cleanup
+    this.cleanupBlinkImages();
   },
+  
   startBlinkMonitor() {
     const path = require("path");
     const { exec } = require("child_process");
@@ -126,6 +135,98 @@ module.exports = NodeHelper.create({
   },
   
   /**
+   * Cleans up Blink camera images, retaining only one image per camera per hour
+   * This helps prevent accumulation of too many files while keeping the latest snapshot for each hour
+   */
+  cleanupBlinkImages() {
+    const fs = require("fs");
+    const path = require("path");
+    
+    const mediaPath = path.join(__dirname, "python", "media");
+    if (!fs.existsSync(mediaPath)) {
+      console.log("Media directory not found, nothing to clean up");
+      return;
+    }
+    
+    // Get all jpg files in the media directory
+    const files = fs.readdirSync(mediaPath)
+      .filter(f => f.toLowerCase().endsWith(".jpg"));
+    
+    if (files.length === 0) {
+      console.log("No image files found to clean up");
+      return;
+    }
+    
+    console.log(`Found ${files.length} images to analyze for cleanup`);
+    
+    // Group files by camera name and hour timestamp
+    const groupedFiles = {};
+    
+    files.forEach(filename => {
+      // Extract camera name and timestamp
+      // Expected format: CameraName_YYYYMMDD_HHMMSS.jpg
+      const match = filename.match(/^(.+?)_(\d{8}_\d{2})(\d{4})\.jpg$/);
+      
+      if (!match) {
+        console.log(`File ${filename} doesn't match expected format, skipping`);
+        return;
+      }
+      
+      const cameraName = match[1];
+      const hourTimestamp = match[2]; // YYYYMMDD_HH
+      
+      // Create a compound key: cameraName + hourTimestamp
+      const key = `${cameraName}_${hourTimestamp}`;
+      
+      if (!groupedFiles[key]) {
+        groupedFiles[key] = [];
+      }
+      
+      groupedFiles[key].push({
+        filename,
+        fullPath: path.join(mediaPath, filename),
+        minuteSeconds: match[3], // The MMSS part
+        stats: fs.statSync(path.join(mediaPath, filename))
+      });
+    });
+    
+    // For each group, keep only the newest file
+    let deletedCount = 0;
+    let retainedCount = 0;
+    
+    for (const key in groupedFiles) {
+      const fileGroup = groupedFiles[key];
+      
+      if (fileGroup.length <= 1) {
+        // Only one file for this camera/hour, nothing to clean up
+        retainedCount++;
+        continue;
+      }
+      
+      // Sort by creation time (newest first)
+      fileGroup.sort((a, b) => b.stats.ctimeMs - a.stats.ctimeMs);
+      
+      // Keep the newest file, delete the rest
+      const newestFile = fileGroup[0];
+      console.log(`Keeping newest file for ${key}: ${newestFile.filename}`);
+      retainedCount++;
+      
+      // Delete all but the newest file
+      for (let i = 1; i < fileGroup.length; i++) {
+        try {
+          fs.unlinkSync(fileGroup[i].fullPath);
+          console.log(`Deleted older file: ${fileGroup[i].filename}`);
+          deletedCount++;
+        } catch (err) {
+          console.error(`Error deleting file ${fileGroup[i].filename}: ${err}`);
+        }
+      }
+    }
+    
+    console.log(`Cleanup complete: retained ${retainedCount} files (newest per camera/hour), deleted ${deletedCount} files`);
+  },
+  
+  /**
    * Load family images from the Pictures folder, sort by creation time, 
    * and send to the client with a flag if this was triggered by a new upload
    * @param {boolean} newUploadDetected - Whether this refresh was triggered by a new file upload
@@ -211,6 +312,9 @@ module.exports = NodeHelper.create({
     }
 
     if (notification === "REQUEST_BLINK") {
+      // Clean up old images first
+      this.cleanupBlinkImages();
+      
       const script = path.join(__dirname, "python", "Blink.py");
       const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
     
@@ -222,6 +326,7 @@ module.exports = NodeHelper.create({
         }
     
         console.log("Blink.py output:", stdout);
+        this.cleanupBlinkImages(); // Clean up after new images are fetched
     
         const mediaPath = path.join(__dirname, "python", "media");
         if (fs.existsSync(mediaPath)) {
@@ -279,15 +384,20 @@ module.exports = NodeHelper.create({
       });
     }
 
-     // Add these new handlers
-     if (notification === "START_BLINK_MONITOR") {
+    // Add these new handlers
+    if (notification === "START_BLINK_MONITOR") {
       this.startBlinkMonitor();
     }
     
     if (notification === "STOP_BLINK_MONITOR") {
       this.stopBlinkMonitor();
     }
-
+    
+    // Handle cleanup request
+    if (notification === "CLEANUP_BLINK_IMAGES") {
+      console.log("Received request to clean up Blink images");
+      this.cleanupBlinkImages();
+    }
   },
 
   syncDropbox(callback) {

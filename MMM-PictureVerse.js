@@ -89,6 +89,9 @@ Module.register("MMM-PictureVerse", {
       
       // Request fresh verse and camera data
       this.sendSocketNotification("REQUEST_VERSE");
+
+      // Clean up old camera images and request fresh ones
+      this.sendSocketNotification("CLEANUP_BLINK_IMAGES");  
       this.sendSocketNotification("REQUEST_BLINK");
       
       // Restart the sequence
