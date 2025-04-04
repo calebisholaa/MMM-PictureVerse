@@ -19,6 +19,7 @@ A MagicMirror² module that creates a beautiful display experience with:
 - **Motion Alerts**: Visual alerts when motion is detected with timestamp overlay
 - **Automatic Updates**: New photos added to Dropbox appear automatically on your mirror
 - **Dynamic Scaling**: Automatically sizes images to fit your display perfectly
+- **OAuth2 Authentication**: Secure Dropbox integration with automatic token refresh
 
 ## Installation
 
@@ -54,49 +55,64 @@ The installation process will automatically:
 
 ## Setting Up Dropbox (For Family Photos)
 
-To display photos from your Dropbox account:
+MMM-PictureVerse now uses OAuth2 authentication with refresh tokens to ensure secure and continuous access to your Dropbox photos. This method follows Dropbox's official recommendations and eliminates the hassle of dealing with expired access tokens.
 
-1. Create a Dropbox app:
-   - Go to [Dropbox Developer Apps](https://www.dropbox.com/developers/apps)
-   - Click "Create app"
-   - Choose "Scoped access"
-   - Choose "Full Dropbox" access
-   - Give your app a name (e.g., "MagicMirrorPhotos")
-   - Click "Create app"
+### Step 1: Create a Dropbox App
 
-2. Generate an access token:
-   - In your new app's settings, go to the "OAuth 2" section
-   - Click "Generate" under "Generated access token"
-   - Copy the access token
+1. Go to [Dropbox Developer Apps](https://www.dropbox.com/developers/apps)
+2. Click "Create app"
+3. Choose "Scoped access" API
+4. Choose "Full Dropbox" access type
+5. Give your app a name (e.g., "MagicMirrorPhotos")
+6. Click "Create app"
 
-3. Create a configuration file using the template:
-   - In your module directory, navigate to the python folder:
-     ```bash
-     cd ~/MagicMirror/modules/MMM-PictureVerse/python/
-     ```
-   - Copy the template to create your configuration file:
-     ```bash
-     cp dropbox_config_template.json dropbox_config.json
-     ```
-   - Edit the new configuration file:
-     ```bash
-     nano dropbox_config.json
-     ```
-   - Update the content with your information:
-     ```json
-     {
-       "access_token": "YOUR_DROPBOX_ACCESS_TOKEN",
-       "dropbox_folder": "/YourPhotosFolder",
-       "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif"]
-     }
-     ```
-   - Save the file (Ctrl+O, then Enter, then Ctrl+X)
+### Step 2: Configure Your App
 
-4. Test your configuration by running:
-   ```bash
-   cd ~/MagicMirror/modules/MMM-PictureVerse/
-   npm run sync-dropbox
-   ```
+1. In your new app's settings page:
+   - Under "Permissions", add the following scopes:
+     - `files.metadata.read`
+     - `files.content.read`
+   - Click "Submit" to save the permissions
+
+2. Under "OAuth 2 > Redirect URIs" add:
+   - `https://localhost`
+   - Save changes
+
+3. Note your "App key" and "App secret" from the Settings tab
+
+### Step 3: Set Up OAuth2 Authentication
+
+Run the OAuth setup script which will guide you through the entire process:
+
+```bash
+cd ~/MagicMirror/modules/MMM-PictureVerse/
+npm run setup-dropbox-oauth
+```
+
+The script will:
+1. Create a configuration file if it doesn't exist
+2. Prompt you to enter your app key and secret
+3. Open a browser window for you to authorize the app
+4. Handle the OAuth flow and store refresh tokens
+5. Test the connection by syncing with your Dropbox account
+
+During the setup, you'll be asked to:
+- Enter your Dropbox app key and secret
+- Authorize the app in your browser
+- Copy-paste the authorization code
+- Specify the Dropbox folder containing your photos
+
+### How the OAuth2 Implementation Works
+
+This module uses the official OAuth2 code flow with refresh tokens as recommended by Dropbox:
+
+1. **Short-lived access tokens**: The primary token used to access Dropbox expires after a few hours
+2. **Refresh tokens**: A long-lived token that allows requesting new access tokens
+3. **Automatic refresh**: The system automatically detects when tokens expire and refreshes them
+4. **Secure storage**: Tokens are stored in a separate file from your configuration
+5. **Background operation**: All token management happens automatically
+
+This implementation follows Dropbox's best practices for authentication and will continue to work reliably without manual intervention.
 
 ## Setting Up Blink Cameras
 
@@ -113,6 +129,7 @@ To enable security camera feeds and motion detection:
    - Display your camera feeds during the camera display portion of the cycle
    - Monitor your cameras for motion in the background
    - Immediately display motion clips when detected, with visual alerts
+   - Keep only one image per camera per hour to maintain organization
 
 ## How It Works
 
@@ -124,6 +141,28 @@ The module follows a structured sequence that repeats every hour:
 4. **Motion Detection**: The module continuously monitors your Blink cameras in the background. If motion is detected, it immediately interrupts the normal display to show the motion clip with a visual alert and timestamp.
 
 At the start of a new hour, the sequence begins again with a fresh verse and camera images.
+
+### Hourly Camera Image Management
+
+The system automatically manages your camera images, keeping only one image per camera per hour. This provides several benefits:
+- Prevents storage space issues by removing duplicate images
+- Maintains an organized record of what each camera sees hourly
+- Automatically cleans up without user intervention
+
+The cleanup happens:
+- At module startup
+- Every hour on a timer
+- Before and after fetching new camera images
+- When the hour changes
+
+### Dropbox Synchronization
+
+The Dropbox integration:
+- Connects securely using OAuth2 authentication
+- Refreshes tokens automatically in the background
+- Syncs new photos automatically on a schedule
+- Updates your display with new photos as they're added to Dropbox
+- Removes local photos that are deleted from Dropbox
 
 ### Motion Detection System
 
@@ -160,7 +199,7 @@ Add the module to your `config/config.js` file:
     
     // Image display settings
     opacity: 0.9,
-    backgroundStyle: "blur",    // Options: "blur", "color", or "none"
+    backgroundStyle: "none",    // Options: "blur", "color", or "none"
     backgroundColor: "black",   // Used when backgroundStyle is "color"
     blur: 8,                    // Blur amount in pixels when using "blur" style
     transition: 1000,            // Transition time between images (ms)
@@ -193,44 +232,80 @@ When using fullscreen mode, you can customize the background appearance:
 
 ## Troubleshooting
 
-- **No photos appearing**: 
-  - Check that your Dropbox configuration is correct
-  - Make sure your access token is valid
-  - Verify photos exist in the specified Dropbox folder
-  - Run `npm run sync-dropbox` to manually sync photos
+### Dropbox Authentication Issues
 
-- **Bible verses not showing**: 
+- **Token expired errors**: Run `npm run setup-dropbox-oauth` to reauthorize
+- **Configuration errors**: Check that your app key and secret are correct
+- **Connection issues**: Verify your internet connection and Dropbox account status
+- **Cannot open browser**: If the authorization URL doesn't open automatically, copy and paste it manually
+
+To check Dropbox logs:
+```bash
+cat ~/MagicMirror/modules/MMM-PictureVerse/logs/dropbox-sync.log
+```
+
+### Camera Image Issues
+
+- **No camera images appearing**: 
+  - Run `npm run setup-blink` to set up Blink again
+  - Check that your Blink cameras are online
+  - Verify your Blink credentials are correct
+
+- **Too many camera images**: 
+  - The module automatically cleans up, keeping only one image per camera per hour
+  - You can manually delete extra images from `python/media` folder if needed
+
+To check Blink monitor logs:
+```bash
+cat ~/MagicMirror/modules/MMM-PictureVerse/logs/blink_monitor.log
+```
+
+### General Issues
+
+- **No Bible verses showing**: 
   - Check your internet connection
   - The API might be temporarily unavailable
 
-- **Blink cameras not working**:
-  - Run the setup script again: `npm run setup-blink`
-  - Check your Blink credentials
-  - Ensure your Blink cameras are online
-
-- **Motion detection not working**:
-  - Check the monitor logs: `cat ~/MagicMirror/modules/MMM-PictureVerse/logs/blink_monitor.log`
-  - Verify your Blink cameras are properly set up for motion detection in the Blink app
-  - Restart MagicMirror to restart the monitor
-
-- **Python issues**:
+- **Python errors**:
   - If you encounter Python-related errors, try reinstalling the virtual environment:
     ```bash
     rm -rf python/venv
     ./setup-venv.sh
     ```
 
-## Advanced: Checking Monitor Status
+## Advanced: System Maintenance
 
-The motion monitor runs automatically in the background. To check its status:
+### Checking System Status
 
 ```bash
-# View the monitor logs
-cat ~/MagicMirror/modules/MMM-PictureVerse/logs/blink_monitor.log
+# Check Dropbox OAuth status and force token refresh
+cd ~/MagicMirror/modules/MMM-PictureVerse/python
+./venv/bin/python DropboxOAuth.py
 
-# Check if the monitor process is running
+# Force a Dropbox sync
+npm run sync-dropbox
+
+# Check Blink monitor status
 ps aux | grep BlinkMonitor.py
+
+# Restart the Blink monitor
+npm run stop-monitor
+npm run start-monitor
 ```
+
+### Updating OAuth2 Credentials
+
+If you need to switch Dropbox accounts or your app credentials have changed:
+
+1. Delete the existing token file:
+   ```bash
+   rm ~/MagicMirror/modules/MMM-PictureVerse/python/dropbox_token.json
+   ```
+
+2. Run the OAuth setup again:
+   ```bash
+   npm run setup-dropbox-oauth
+   ```
 
 ## License
 

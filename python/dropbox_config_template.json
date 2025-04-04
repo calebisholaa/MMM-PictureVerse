@@ -1,6 +1,6 @@
 {
-    "access_token": "your_token_here",
-    "dropbox_folder": "/Photos",
-    "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif"]
-  }
-  
+  "app_key": "YOUR_DROPBOX_APP_KEY",
+  "app_secret": "YOUR_DROPBOX_APP_SECRET",
+  "dropbox_folder": "/YOUR_PHOTOS_FOLDER",
+  "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif"]
+}
