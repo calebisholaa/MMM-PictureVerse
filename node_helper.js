@@ -9,6 +9,7 @@ module.exports = NodeHelper.create({
     console.log("MMM-PictureVerse helper started");
     this.setupWatchers();
     
+    this.startCleanupScript();
     // Set up the motion detection monitor
     this.startBlinkMonitor();
 
@@ -26,6 +27,8 @@ module.exports = NodeHelper.create({
     
     // Run initial cleanup
     this.cleanupBlinkImages();
+    this.startCleanupScript();
+
   },
   
   startBlinkMonitor() {
@@ -417,6 +420,24 @@ module.exports = NodeHelper.create({
         const filesDownloaded = stdout.includes("Downloaded") && !stdout.includes("Downloaded 0 new files");
         if (callback) callback(filesDownloaded);
       }
+    });
+  },
+    // In the start() function of node_helper.js
+  startCleanupScript() {
+    const path = require("path");
+    const { exec } = require("child_process");
+    
+    // Path to the Python script
+    const scriptPath = path.join(__dirname, "python", "CleanUpMedia.py");
+    const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+    
+    console.log("Starting media cleanup script...");
+    exec(`${pythonExec} ${scriptPath} &`, (error, stdout, stderr) => {
+      if (error) {
+        console.error(`Error starting cleanup script: ${error}`);
+        return;
+      }
+      console.log("Media cleanup script started successfully");
     });
   },
 
