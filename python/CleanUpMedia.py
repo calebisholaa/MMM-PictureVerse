@@ -24,8 +24,8 @@ MEDIA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "media")
 
 def cleanup_blink_media():
     """
-    Cleans up Blink camera media files (images and videos), 
-    keeping only the newest file per camera per hour
+    Cleans up Blink camera media files (images and videos),
+    keeping ONLY the most recent file per camera per type
     """
     logging.info("Starting Blink media cleanup...")
     
@@ -46,24 +46,24 @@ def cleanup_blink_media():
         files_deleted = 0
         files_kept = 0
         
-        # Group files by camera name and hour timestamp
+        # Group files only by camera name and file type
         for file_type, file_list in [("image", image_files), ("video", video_files)]:
             grouped_files = {}
             
             for filename in file_list:
-                # Extract camera name and timestamp
+                # Extract camera name from filename
                 # Expected format: CameraName_YYYYMMDD_HHMMSS.ext
-                match = re.match(r'^(.+?)_(\d{8}_\d{2})(\d{4})\.(jpg|jpeg|mp4)$', filename, re.IGNORECASE)
+                match = re.match(r'^(.+?)_(\d{8}_\d{6})\.(jpg|jpeg|mp4)$', filename, re.IGNORECASE)
                 
                 if not match:
                     logging.warning(f"{file_type.capitalize()} {filename} doesn't match expected format, skipping")
                     continue
                 
                 camera_name = match.group(1)
-                hour_timestamp = match.group(2)  # YYYYMMDD_HH
+                timestamp = match.group(2)  # YYYYMMDD_HHMMSS
                 
-                # Create a compound key for grouping: camera + file type + hour
-                key = f"{camera_name}_{file_type}_{hour_timestamp}"
+                # Create a key for grouping: camera + file type only
+                key = f"{camera_name}_{file_type}"
                 
                 if key not in grouped_files:
                     grouped_files[key] = []
@@ -71,36 +71,32 @@ def cleanup_blink_media():
                 file_path = os.path.join(MEDIA_DIR, filename)
                 
                 try:
-                    # Get file stats for sorting by creation/modification time
-                    file_stats = os.stat(file_path)
-                    
                     grouped_files[key].append({
                         'filename': filename,
                         'full_path': file_path,
-                        'mtime': file_stats.st_mtime,  # Modification time
-                        'ctime': file_stats.st_ctime,  # Creation time
-                        'size': file_stats.st_size     # File size for logging
+                        'timestamp': timestamp,
+                        'size': os.path.getsize(file_path)
                     })
                 except Exception as e:
-                    logging.error(f"Error getting stats for {filename}: {e}")
+                    logging.error(f"Error processing {filename}: {e}")
             
-            # Process each group (camera + file type + hour)
+            # Process each group (camera + file type)
             for key, file_group in grouped_files.items():
                 if len(file_group) <= 1:
-                    # Only one file for this camera/hour, nothing to clean up
+                    # Only one file for this camera/type, nothing to clean up
                     files_kept += 1
-                    logging.debug(f"Keeping {file_group[0]['filename']} (only file in group)")
+                    logging.debug(f"Keeping {file_group[0]['filename']} (only file for {key})")
                     continue
                 
-                # Sort by modification time (newest first)
-                file_group.sort(key=lambda x: x['mtime'], reverse=True)
+                # Sort by timestamp (newest first)
+                file_group.sort(key=lambda x: x['timestamp'], reverse=True)
                 
-                # Keep the newest file, delete the rest
+                # Keep only the newest file
                 newest_file = file_group[0]
                 logging.info(f"Keeping newest {file_type} for {key}: {newest_file['filename']}")
                 files_kept += 1
                 
-                # Delete all but the newest file
+                # Delete ALL other files for this camera/type
                 for i in range(1, len(file_group)):
                     try:
                         file_to_delete = file_group[i]
@@ -111,29 +107,8 @@ def cleanup_blink_media():
                     except Exception as e:
                         logging.error(f"Error deleting file {file_group[i]['filename']}: {e}")
         
-        # Clean up files with invalid names that don't match any pattern
-        invalid_files = []
-        for filename in all_files:
-            if (not filename.lower().endswith(('.jpg', '.jpeg', '.mp4')) or 
-                not re.match(r'^(.+?)_\d{8}_\d{6}\.(jpg|jpeg|mp4)$', filename, re.IGNORECASE)):
-                # Skip dot files (hidden files like .gitkeep)
-                if filename.startswith('.'):
-                    continue
-                    
-                # Skip directories
-                if os.path.isdir(os.path.join(MEDIA_DIR, filename)):
-                    continue
-                    
-                invalid_files.append(filename)
-        
-        # Log information about invalid files but don't delete them
-        if invalid_files:
-            logging.warning(f"Found {len(invalid_files)} files with invalid naming patterns:")
-            for filename in invalid_files:
-                logging.warning(f"  - {filename}")
-        
         # Log summary of cleanup operation
-        logging.info(f"Cleanup complete: kept {files_kept} files, deleted {files_deleted} files")
+        logging.info(f"Cleanup complete: kept {files_kept} files (newest per camera/type), deleted {files_deleted} files")
         return True
     
     except Exception as e:
