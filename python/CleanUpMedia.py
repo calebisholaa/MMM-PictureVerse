@@ -10,7 +10,7 @@ LOG_DIR = os.path.join(os.path.dirname(__file__), "logs")
 LOG_FILE = os.path.join(LOG_DIR, "blink_cleanup.log")
 
 # Keep this many hours of history per camera/type
-MAX_HOURS_TO_KEEP = 72  # adjust as needed
+MAX_HOURS_TO_KEEP = 2  # 72 adjust as needed
 
 if not os.path.exists(LOG_DIR):
     os.makedirs(LOG_DIR)

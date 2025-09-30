@@ -245,7 +245,7 @@ Module.register("MMM-PictureVerse", {
       
       // Store motion videos and images if available
       if (payload.videos && payload.videos.length > 0) {
-        this.motionVideos = payload.videos;
+        this.motionVideos = payload.videos.filter(v => v.endsWith(".mp4"));
         console.log(`Received ${this.motionVideos.length} motion videos`);
         
         // Update images too if available
@@ -280,6 +280,7 @@ Module.register("MMM-PictureVerse", {
             console.log("Motion display time ended, returning to previous state");
             this.showingMotion = false;
             this.currentDisplay = this.previousDisplay;
+            this.motionVideos = [];
             this.motionStartTime = null; // Reset the timer
             
             // If returning to family display, make sure we restart the family timer
@@ -581,6 +582,17 @@ Module.register("MMM-PictureVerse", {
           video.style.position = "relative";
           video.style.left = "auto";
           video.style.top = "auto";
+
+          setTimeout(() => {
+            const elapsedTime = Date.now() - this.motionStartTime;
+            if (elapsedTime >= this.config.motionClipDisplayTime) {
+              console.log("Watchdog: forcing exit from motion mode");
+              this.showingMotion = false;
+              this.currentDisplay = this.previousDisplay;
+              this.motionVideos = [];
+              this.updateDom();
+            }
+          }, this.config.motionClipDisplayTime + 1000); // +1s buffer
           
           // Add timestamp overlay
           const timestamp = document.createElement("div");

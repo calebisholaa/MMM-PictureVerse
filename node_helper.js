@@ -146,7 +146,7 @@ module.exports = NodeHelper.create({
     const path = require("path");
   
     const mediaPath = path.join(__dirname, "python", "media");
-    const RETAIN_HOURS = 24; // keep last 48 hour-buckets per camera; tweak as you like
+    const RETAIN_HOURS = 2; // keep last 48 hour-buckets per camera; tweak as you like
   
     if (!fs.existsSync(mediaPath)) {
       console.log("Media directory not found, nothing to clean up");
