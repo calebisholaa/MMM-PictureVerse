@@ -315,47 +315,37 @@ Module.register("MMM-PictureVerse", {
       
       // If randomization is enabled, create a randomized order (but keep original list for reference)
       if (!this.config.sequential) {
-        // If this is the first time or we have a new upload, create a new random order
         if (!this.familyRandomOrder || (hasNewUpload && payload.newUpload)) {
-          // Create a shuffled array of indices
           this.familyRandomOrder = [...Array(this.familyImages.length).keys()];
           
-          // If we want to show newest first, remove the first image from randomization
           let newestImageIndex = null;
           if (this.config.alwaysShowNewestFirst && this.familyImages.length > 1) {
-            newestImageIndex = 0; // The newest image is at index 0 in our sorted list
-            this.familyRandomOrder.shift(); // Remove index 0
+            newestImageIndex = 0;
+            this.familyRandomOrder.shift();
           }
           
-          // Shuffle the remaining indices using Fisher-Yates algorithm
           for (let i = this.familyRandomOrder.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [this.familyRandomOrder[i], this.familyRandomOrder[j]] = 
             [this.familyRandomOrder[j], this.familyRandomOrder[i]];
           }
           
-          // If showing newest first, insert it at the beginning
           if (newestImageIndex !== null) {
             this.familyRandomOrder.unshift(newestImageIndex);
           }
           
-          // Reset the current position in the random sequence
           this.familyRandomIndex = 0;
           console.log("Created new randomized order:", this.familyRandomOrder);
-        } 
-        // If we just added more images but aren't resetting, merge them into the random order
-        else if (this.familyRandomOrder.length < this.familyImages.length) {
+        } else if (this.familyRandomOrder.length < this.familyImages.length) {
           const oldLength = this.familyRandomOrder.length;
           const newIndices = [...Array(this.familyImages.length - oldLength).keys()]
                              .map(i => i + oldLength);
           
-          // Shuffle just the new indices
           for (let i = newIndices.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [newIndices[i], newIndices[j]] = [newIndices[j], newIndices[i]];
           }
           
-          // Append the new indices to the existing random order
           this.familyRandomOrder = this.familyRandomOrder.concat(newIndices);
           console.log("Updated randomized order with new images:", this.familyRandomOrder);
         }
@@ -363,31 +353,25 @@ Module.register("MMM-PictureVerse", {
       
       // Set initial index
       if (this.familyImages.length > 0) {
-        // If this was a new upload and we're currently showing family photos,
-        // reset the index to show the newest image immediately
-        if (hasNewUpload && payload.newUpload && this.currentDisplay === "family") {
-          console.log("New upload detected, resetting to show newest image");
-          
-          // In random mode, we reset to the beginning of our random sequence
-          // which will show the newest image first if alwaysShowNewestFirst is true
-          if (!this.config.sequential) {
-            this.familyRandomIndex = 0;
-          } else {
-            this.familyIndex = 0; // In sequential mode, newest is at index 0
-          }
-          
-          // Clear any existing family timer to start fresh
-          if (this.timer) {
-            clearTimeout(this.timer);
-            this.timer = null;
-          }
-          
-          // Update the display and restart the family timer
+        if (hasNewUpload && payload.newUpload) {
+          // 🔴 OLD: only switched if already in family mode
+          // 🟢 NEW: always interrupt, no matter what is showing
+          console.log("New upload detected, interrupting to show newest image immediately");
+    
+          this.familyIndex = 0;
+          this.familyRandomIndex = 0;
+    
+          // Stop all timers (verse, camera, motion, family)
+          this.clearTimers();
+    
+          // Force switch to family mode
+          this.currentDisplay = "family";
+    
+          // Update display + restart family slideshow
           this.updateDom();
           this.startFamilyTimer();
-        } 
-        // Otherwise just ensure the index is valid
-        else {
+        } else {
+          // Otherwise just ensure index is valid
           if (!this.config.sequential) {
             if (!this.familyRandomIndex || this.familyRandomIndex >= this.familyRandomOrder.length) {
               this.familyRandomIndex = 0;
@@ -400,7 +384,7 @@ Module.register("MMM-PictureVerse", {
       
       this.checkAllLoaded();
       this.updateDom();
-    }
+    }    
   },
 
   // Check if all required data is loaded
