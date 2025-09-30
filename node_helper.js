@@ -144,90 +144,108 @@ module.exports = NodeHelper.create({
   cleanupBlinkImages() {
     const fs = require("fs");
     const path = require("path");
-    
+  
     const mediaPath = path.join(__dirname, "python", "media");
+    const RETAIN_HOURS = 24; // keep last 48 hour-buckets per camera; tweak as you like
+  
     if (!fs.existsSync(mediaPath)) {
       console.log("Media directory not found, nothing to clean up");
       return;
     }
-    
-    // Get all jpg files in the media directory
+  
     const files = fs.readdirSync(mediaPath)
-      .filter(f => f.toLowerCase().endsWith(".jpg"));
-    
+      .filter(f => f.toLowerCase().endsWith(".jpg") || f.toLowerCase().endsWith(".mp4"));
+  
     if (files.length === 0) {
       console.log("No image files found to clean up");
       return;
     }
-    
-    console.log(`Found ${files.length} images to analyze for cleanup`);
-    
-    // Group files by camera name and hour timestamp
-    const groupedFiles = {};
-    
-    files.forEach(filename => {
-      // Extract camera name and timestamp
-      // Expected format: CameraName_YYYYMMDD_HHMMSS.jpg
-      const match = filename.match(/^(.+?)_(\d{8}_\d{2})(\d{4})\.jpg$/);
-      
-      if (!match) {
+  
+    // Parse: CameraName_YYYYMMDD_HHMMSS.jpg  → groups by (camera, hour)
+    const rx = /^(.+?)_(\d{8})_(\d{2})(\d{4})\.(jpg|jpeg)$/i;
+    const byHour = {}; // key: `${camera}_${YYYYMMDD}_${HH}` → files[]
+  
+    for (const filename of files) {
+      const m = filename.match(rx);
+      if (!m) {
         console.log(`File ${filename} doesn't match expected format, skipping`);
-        return;
-      }
-      
-      const cameraName = match[1];
-      const hourTimestamp = match[2]; // YYYYMMDD_HH
-      
-      // Create a compound key: cameraName + hourTimestamp
-      const key = `${cameraName}_${hourTimestamp}`;
-      
-      if (!groupedFiles[key]) {
-        groupedFiles[key] = [];
-      }
-      
-      groupedFiles[key].push({
-        filename,
-        fullPath: path.join(mediaPath, filename),
-        minuteSeconds: match[3], // The MMSS part
-        stats: fs.statSync(path.join(mediaPath, filename))
-      });
-    });
-    
-    // For each group, keep only the newest file
-    let deletedCount = 0;
-    let retainedCount = 0;
-    
-    for (const key in groupedFiles) {
-      const fileGroup = groupedFiles[key];
-      
-      if (fileGroup.length <= 1) {
-        // Only one file for this camera/hour, nothing to clean up
-        retainedCount++;
         continue;
       }
-      
-      // Sort by creation time (newest first)
-      fileGroup.sort((a, b) => b.stats.ctimeMs - a.stats.ctimeMs);
-      
-      // Keep the newest file, delete the rest
-      const newestFile = fileGroup[0];
-      console.log(`Keeping newest file for ${key}: ${newestFile.filename}`);
-      retainedCount++;
-      
-      // Delete all but the newest file
-      for (let i = 1; i < fileGroup.length; i++) {
+      const camera = m[1];
+      const yyyymmdd = m[2];
+      const HH = m[3];
+      const mmss = m[4]; // MMSS
+      const ts = `${yyyymmdd}_${HH}${mmss}`; // YYYYMMDD_HHMMSS (as string; lexicographic works)
+      const key = `${camera}_${yyyymmdd}_${HH}`;
+  
+      if (!byHour[key]) byHour[key] = [];
+      byHour[key].push({
+        filename,
+        fullPath: path.join(mediaPath, filename),
+        ts
+      });
+    }
+  
+    let deleted = 0;
+    let kept = 0;
+  
+    // 1) Dedup within each hour-bucket: keep newest ts
+    for (const key of Object.keys(byHour)) {
+      const files = byHour[key];
+      if (files.length <= 1) { kept++; continue; }
+  
+      files.sort((a, b) => b.ts.localeCompare(a.ts)); // newest first
+      kept++;
+      for (let i = 1; i < files.length; i++) {
         try {
-          fs.unlinkSync(fileGroup[i].fullPath);
-          console.log(`Deleted older file: ${fileGroup[i].filename}`);
-          deletedCount++;
-        } catch (err) {
-          console.error(`Error deleting file ${fileGroup[i].filename}: ${err}`);
+          fs.unlinkSync(files[i].fullPath);
+          console.log(`Deleted older file: ${files[i].filename}`);
+          deleted++;
+        } catch (e) {
+          console.error(`Error deleting ${files[i].filename}: ${e}`);
         }
       }
+      // shrink array to only the newest
+      byHour[key] = [files[0]];
     }
-    
-    console.log(`Cleanup complete: retained ${retainedCount} files (newest per camera/hour), deleted ${deletedCount} files`);
-  },
+  
+    // 2) Retention: keep only last N hour-buckets per camera
+    // Build per-camera list of hour keys, newest→oldest by key suffix (YYYYMMDD_HH)
+    const byCamera = {};
+    for (const key of Object.keys(byHour)) {
+      // key format camera_YYYYMMDD_HH → split last two underscores
+      const lastUnderscore = key.lastIndexOf("_");
+      const secondUnderscore = key.lastIndexOf("_", lastUnderscore - 1);
+      const camera = key.substring(0, secondUnderscore);
+      const hourKey = key.substring(secondUnderscore + 1); // YYYYMMDD_HH
+  
+      if (!byCamera[camera]) byCamera[camera] = [];
+      byCamera[camera].push({ key, hourKey });
+    }
+  
+    for (const camera of Object.keys(byCamera)) {
+      // Sort newest first
+      byCamera[camera].sort((a, b) => b.hourKey.localeCompare(a.hourKey));
+      const toRemove = byCamera[camera].slice(RETAIN_HOURS); // all older buckets
+  
+      for (const { key } of toRemove) {
+        // delete the single kept file in that old hour-bucket
+        const files = byHour[key] || [];
+        for (const f of files) {
+          try {
+            fs.unlinkSync(f.fullPath);
+            console.log(`Deleted old hour-bucket file: ${f.filename}`);
+            deleted++;
+          } catch (e) {
+            console.error(`Error deleting ${f.filename}: ${e}`);
+          }
+        }
+        delete byHour[key];
+      }
+    }
+  
+      console.log(`Cleanup complete: retained ~${Object.keys(byHour).length} hourly files, deleted ${deleted}`);
+    },
   
   /**
    * Load family images from the Pictures folder, sort by creation time, 
