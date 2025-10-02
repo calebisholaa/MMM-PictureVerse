@@ -593,7 +593,7 @@ Module.register("MMM-PictureVerse", {
               this.updateDom();
             }
           }, this.config.motionClipDisplayTime + 1000); // +1s buffer
-          
+
           // Add timestamp overlay
           const timestamp = document.createElement("div");
           timestamp.className = "timestamp";
@@ -639,8 +639,11 @@ Module.register("MMM-PictureVerse", {
       if (!this.motionStartTime) {
         this.motionStartTime = Date.now();
       }
-    } else {
-      wrapper.innerHTML = "No motion clips available";
+        } else {
+          console.log("No motion clips available – falling back to family display");
+          this.showingMotion = false;
+          this.currentDisplay = this.previousDisplay; 
+          this.updateDom();  // re-render the family display
     }
     break;
         
