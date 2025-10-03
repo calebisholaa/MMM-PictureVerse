@@ -642,7 +642,11 @@ Module.register("MMM-PictureVerse", {
         } else {
           console.log("No motion clips available – falling back to family display");
           this.showingMotion = false;
-          this.currentDisplay = this.previousDisplay; 
+          this.currentDisplay = 'family' 
+          // Randomize family image index
+          if (this.familyImages.length > 0) {
+            this.familyIndex = Math.floor(Math.random() * this.familyImages.length); // Random index
+          }
           this.updateDom();  // re-render the family display
     }
     break;
