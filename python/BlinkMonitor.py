@@ -35,14 +35,14 @@ async def monitor_motion(blink):
                     base_name = name.replace(" ", "_")
                     img_path = os.path.join(MEDIA_FOLDER, f"{base_name}_{timestamp}.jpg")
                     await cam.image_to_file(img_path)
-                    print(f"🖼  Snapshot saved: {img_path}")
+                    print(f" Snapshot saved: {img_path}")
 
                     if cam.video_from_cache:
                         video_path = os.path.join(MEDIA_FOLDER, f"{base_name}_{timestamp}.mp4")
                         await cam.video_to_file(video_path)
-                        print(f"🎥  Motion video saved: {video_path}")
+                        print(f" Motion video saved: {video_path}")
                     else:
-                        print("⚠️  No motion video available yet.")
+                        print(" No motion video available yet.")
                 else:
                     print(f"No motion on {name}")
 

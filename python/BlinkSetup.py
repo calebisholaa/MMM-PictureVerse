@@ -22,7 +22,7 @@ async def run_setup():
             await blink.start()
         except Exception as e:
             two_fa = input("Enter the 2FA code sent to your email/phone: ")
-            await auth.send_auth_key(blink, two_fa)
+            await blink.send_2fa_code(two_fa)
             await blink.setup_post_verify()
 
         print("Login successful. Saving credentials...")
