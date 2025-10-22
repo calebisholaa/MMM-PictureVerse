@@ -26,7 +26,7 @@ async def monitor_motion(blink):
                 if cam.motion_detected:
                     motion_detected = True
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    print(f"🚨 Motion detected on {name} at {timestamp}")
+                    print(f"Motion detected on {name} at {timestamp}")
 
                     await cam.snap_picture()
                     await asyncio.sleep(2)
@@ -62,7 +62,7 @@ async def start():
     print(f"Media will be saved to: {MEDIA_FOLDER}")
 
     if not os.path.exists(CREDS_FILE):
-        print(f"❌ Credentials file not found at {CREDS_FILE}")
+        print(f"Credentials file not found at {CREDS_FILE}")
         print("Please run BlinkSetup.py first.")
         return
 
@@ -75,8 +75,8 @@ async def start():
             await blink.start()
             await blink.refresh()
 
-            print(f"✅ Connected to Blink as {blink.auth.login_attributes.get('email', 'Unknown')}")
-            print(f"📷 Cameras detected: {', '.join(blink.cameras.keys())}\n")
+            print(f"Connected to Blink as {blink.auth.login_attributes.get('email', 'Unknown')}")
+            print(f"Cameras detected: {', '.join(blink.cameras.keys())}\n")
 
             await monitor_motion(blink)
 
