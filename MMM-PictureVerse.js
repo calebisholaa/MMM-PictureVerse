@@ -546,301 +546,108 @@ Module.register("MMM-PictureVerse", {
         break;
         
         // This should replace the 'motion' case in your getRegularDom method
-  // Replace the "motion" case in your getRegularDom() method with this enhanced version
+      case "motion":
+        if (this.motionVideos.length > 0) {
+          const container = document.createElement("div");
+          container.className = "motion-container";
+          
+          // Add a motion alert indicator
+          const alertBanner = document.createElement("div");
+          alertBanner.textContent = "Motion Detected";
+          alertBanner.style.position = "absolute";
+          alertBanner.style.top = "10px";
+          alertBanner.style.left = "50%";
+          alertBanner.style.transform = "translateX(-50%)";
+          alertBanner.style.backgroundColor = "rgba(255, 0, 0, 0.7)";
+          alertBanner.style.color = "white";
+          alertBanner.style.padding = "5px 15px";
+          alertBanner.style.borderRadius = "5px";
+          alertBanner.style.zIndex = "100";
+          alertBanner.className = "motion-alert";
+          container.appendChild(alertBanner);
+      
+          // Create the video element
+          const video = document.createElement("video");
+          video.src = this.motionVideos[this.videoIndex];
+          video.autoplay = true;  // Enable autoplay
+          video.muted = true;     // Mute to ensure autoplay works in all browsers
+          video.controls = false; // Hide controls for cleaner appearance
+          video.loop = false;     // We'll handle looping with our own logic
+          video.className = "blessed-image visible";
+          
+          // Create a counter for loop tracking
+          video.dataset.loopCount = "0";
+          
+          // Center the video
+          video.style.position = "relative";
+          video.style.left = "auto";
+          video.style.top = "auto";
 
-  case "motion":
-    if (this.motionVideos.length > 0) {
-      const container = document.createElement("div");
-      container.className = "motion-container";
-      
-      // Add a motion alert indicator
-      const alertBanner = document.createElement("div");
-      alertBanner.textContent = "Motion Detected";
-      alertBanner.style.position = "absolute";
-      alertBanner.style.top = "10px";
-      alertBanner.style.left = "50%";
-      alertBanner.style.transform = "translateX(-50%)";
-      alertBanner.style.backgroundColor = "rgba(255, 0, 0, 0.7)";
-      alertBanner.style.color = "white";
-      alertBanner.style.padding = "5px 15px";
-      alertBanner.style.borderRadius = "5px";
-      alertBanner.style.zIndex = "100";
-      alertBanner.className = "motion-alert";
-      container.appendChild(alertBanner);
+          setTimeout(() => {
+            const elapsedTime = Date.now() - this.motionStartTime;
+            if (elapsedTime >= this.config.motionClipDisplayTime) {
+              console.log("Watchdog: forcing exit from motion mode");
+              this.showingMotion = false;
+              this.currentDisplay = this.previousDisplay;
+              this.motionVideos = [];
+              this.updateDom();
+            }
+          }, this.config.motionClipDisplayTime + 1000); // +1s buffer
 
-      const currentVideoPath = this.motionVideos[this.videoIndex];
-      const isGarageVideo = currentVideoPath.toLowerCase().includes('garage');
-      
-      console.log(`[Motion Video] Loading video ${this.videoIndex + 1}/${this.motionVideos.length}`);
-      console.log(`[Motion Video] Path: ${currentVideoPath}`);
-      console.log(`[Motion Video] Is Garage: ${isGarageVideo}`);
-
-      // Create the video element
-      const video = document.createElement("video");
-      
-      // Set attributes BEFORE setting src
-      video.autoplay = true;
-      video.muted = true;
-      video.controls = false;
-      video.loop = false;
-      video.playsInline = true;
-      video.preload = "auto";
-      video.className = "blessed-image visible";
-      
-      // Store reference for event handlers
-      const self = this;
-      let hasPlayedSuccessfully = false;
-      let loadingTimeout = null;
-      let fallbackToSnapshot = false;
-      
-      // Enhanced error handler with detailed logging
-      video.onerror = function(e) {
-        console.error(`[Motion Video ERROR] Video failed to load`);
-        console.error(`  - Source: ${video.src}`);
-        console.error(`  - ReadyState: ${video.readyState}`);
-        console.error(`  - NetworkState: ${video.networkState}`);
-        console.error(`  - Error code: ${video.error ? video.error.code : 'unknown'}`);
-        console.error(`  - Error message: ${video.error ? video.error.message : 'unknown'}`);
-        
-        // Clear loading timeout
-        if (loadingTimeout) clearTimeout(loadingTimeout);
-        
-        // Try to show snapshot instead
-        const snapshotPath = currentVideoPath.replace('.mp4', '.jpg');
-        console.log(`[Motion Video] Attempting fallback to snapshot: ${snapshotPath}`);
-        
-        // Create image fallback
-        const fallbackImg = document.createElement('img');
-        fallbackImg.src = snapshotPath;
-        fallbackImg.className = 'blessed-image visible';
-        fallbackImg.style.position = "relative";
-        fallbackImg.style.left = "auto";
-        fallbackImg.style.top = "auto";
-        
-        fallbackImg.onload = function() {
-          console.log(`[Motion Video] ✓ Snapshot loaded successfully`);
-          // Replace video with image
-          if (video.parentNode === container) {
-            container.replaceChild(fallbackImg, video);
-            fallbackToSnapshot = true;
-            
-            // Auto-advance after showing snapshot for a bit
-            setTimeout(() => {
-              self.handleVideoEnd();
-            }, 5000); // Show snapshot for 5 seconds
-          }
-        };
-        
-        fallbackImg.onerror = function() {
-          console.error(`[Motion Video] ✗ Snapshot also failed to load`);
-          // Skip to next video
-          self.handleVideoEnd();
-        };
-      };
-      
-      // Track loading progress
-      video.onloadstart = function() {
-        console.log(`[Motion Video] Loading started...`);
-        
-        // Set a timeout for loading (30 seconds max)
-        loadingTimeout = setTimeout(() => {
-          if (!hasPlayedSuccessfully && video.readyState < 3) {
-            console.error(`[Motion Video] Loading timeout (30s) - forcing skip`);
-            video.onerror({ type: 'timeout' });
-          }
-        }, 30000);
-      };
-      
-      video.onloadedmetadata = function() {
-        console.log(`[Motion Video] Metadata loaded`);
-        console.log(`  - Duration: ${video.duration}s`);
-        console.log(`  - Dimensions: ${video.videoWidth}x${video.videoHeight}`);
-        
-        // Check for invalid video
-        if (video.videoWidth === 0 || video.videoHeight === 0) {
-          console.error(`[Motion Video] Invalid dimensions - video may be corrupted`);
-          video.onerror({ type: 'invalid_dimensions' });
-          return;
-        }
-        
-        if (video.duration === 0 || isNaN(video.duration)) {
-          console.error(`[Motion Video] Invalid duration - video may be corrupted`);
-          video.onerror({ type: 'invalid_duration' });
-          return;
-        }
-      };
-      
-      video.onloadeddata = function() {
-        console.log(`[Motion Video] Data loaded (readyState: ${video.readyState})`);
-      };
-      
-      video.oncanplay = function() {
-        console.log(`[Motion Video] Can play`);
-        
-        // Clear loading timeout
-        if (loadingTimeout) {
-          clearTimeout(loadingTimeout);
-          loadingTimeout = null;
-        }
-        
-        // Explicitly try to play
-        const playPromise = video.play();
-        
-        if (playPromise !== undefined) {
-          playPromise
-            .then(() => {
-              console.log(`[Motion Video] ✓ Playing successfully`);
-              hasPlayedSuccessfully = true;
-            })
-            .catch(err => {
-              console.error(`[Motion Video] Play failed:`, err);
-              // Try again after a short delay
-              setTimeout(() => {
-                video.play().catch(e => {
-                  console.error(`[Motion Video] Second play attempt failed:`, e);
-                  video.onerror({ type: 'play_failed' });
-                });
-              }, 100);
-            });
-        }
-      };
-      
-      video.oncanplaythrough = function() {
-        console.log(`[Motion Video] Can play through (fully loaded)`);
-      };
-      
-      video.onplaying = function() {
-        console.log(`[Motion Video] Now playing`);
-      };
-      
-      video.onstalled = function() {
-        console.warn(`[Motion Video] Playback stalled`);
-      };
-      
-      video.onwaiting = function() {
-        console.warn(`[Motion Video] Waiting for more data...`);
-      };
-      
-      video.onsuspend = function() {
-        console.log(`[Motion Video] Download suspended`);
-      };
-      
-      video.onabort = function() {
-        console.warn(`[Motion Video] Download aborted`);
-      };
-      
-      video.onemptied = function() {
-        console.warn(`[Motion Video] Media element emptied`);
-      };
-      
-      // Handle video end
-      self.handleVideoEnd = function() {
-        const elapsedTime = Date.now() - self.motionStartTime;
-        
-        console.log(`[Motion Video] Video ended. Elapsed: ${elapsedTime}ms / ${self.config.motionClipDisplayTime}ms`);
-
-        if (elapsedTime < self.config.motionClipDisplayTime) {
-          if (self.videoIndex < self.motionVideos.length - 1) {
-            self.videoIndex++;
-            console.log(`[Motion Video] Advancing to next video (${self.videoIndex + 1}/${self.motionVideos.length})`);
-            self.updateDom();
+          // Add timestamp overlay
+          const timestamp = document.createElement("div");
+          timestamp.className = "timestamp";
+          
+          // Extract timestamp from filename if possible
+          const match = this.motionVideos[this.videoIndex].match(/(\d{8}_\d{6})/);
+          if (match) {
+            const tsString = match[1];
+            // Format: YYYYMMDD_HHMMSS to YYYY-MM-DD HH:MM:SS
+            const formattedTime = `${tsString.slice(0,4)}-${tsString.slice(4,6)}-${tsString.slice(6,8)} ${tsString.slice(9,11)}:${tsString.slice(11,13)}:${tsString.slice(13,15)}`;
+            timestamp.textContent = formattedTime;
           } else {
-            // Loop back to start
-            self.videoIndex = 0;
-            console.log(`[Motion Video] Restarting from first video`);
-            self.updateDom();
+            // If no timestamp in filename, use current time
+            timestamp.textContent = new Date().toLocaleTimeString();
           }
-        } else {
-          console.log(`[Motion Video] Time limit reached, returning to normal sequence`);
-        }
-      };
+          
+          container.appendChild(timestamp);
       
-      video.onended = function() {
-        self.handleVideoEnd();
-      };
+          // Handle video ended event - implement looping
+          video.onended = () => {
+            const elapsedTime = Date.now() - this.motionStartTime;
 
-      // Center the video
-      video.style.position = "relative";
-      video.style.left = "auto";
-      video.style.top = "auto";
-
-      // Watchdog timer as backup
-      setTimeout(() => {
-        const elapsedTime = Date.now() - self.motionStartTime;
-        if (elapsedTime >= self.config.motionClipDisplayTime) {
-          console.log("[Motion Video] Watchdog: forcing exit from motion mode");
-          self.showingMotion = false;
-          self.currentDisplay = self.previousDisplay;
-          self.motionVideos = [];
-          self.motionStartTime = null;
-          self.updateDom();
-        }
-      }, self.config.motionClipDisplayTime + 2000);
-
-      // Add timestamp overlay
-      const timestamp = document.createElement("div");
-      timestamp.className = "timestamp";
-      timestamp.style.position = "absolute";
-      timestamp.style.bottom = "10px";
-      timestamp.style.left = "10px";
-      timestamp.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-      timestamp.style.color = "white";
-      timestamp.style.padding = "5px 10px";
-      timestamp.style.borderRadius = "3px";
-      timestamp.style.fontSize = "14px";
-      timestamp.style.fontFamily = "monospace";
-      timestamp.style.zIndex = "101";
+            if (elapsedTime < this.config.motionClipDisplayTime) {
+              // If there’s another video, play it
+              if (this.videoIndex < this.motionVideos.length - 1) {
+                this.videoIndex++;
+                this.updateDom(); // Load next video
+              } else {
+                // If all clips have played, restart from the first until time is up
+                this.videoIndex = 0;
+                this.updateDom();
+              }
+            } else {
+              console.log("Motion timer expired, will return to normal sequence");
+              // Do nothing here — the motionTimer in socketNotificationReceived will handle reset
+            }
+          };
       
-      // Extract timestamp from filename if possible
-      const match = currentVideoPath.match(/(\d{8}_\d{6})/);
-      if (match) {
-        const tsString = match[1];
-        const formattedTime = `${tsString.slice(0,4)}-${tsString.slice(4,6)}-${tsString.slice(6,8)} ${tsString.slice(9,11)}:${tsString.slice(11,13)}:${tsString.slice(13,15)}`;
-        timestamp.textContent = formattedTime;
-      } else {
-        timestamp.textContent = new Date().toLocaleTimeString();
-      }
-      
-      container.appendChild(timestamp);
-      
-      // Add camera name indicator
-      const cameraName = document.createElement("div");
-      cameraName.className = "camera-name";
-      cameraName.style.position = "absolute";
-      cameraName.style.top = "50px";
-      cameraName.style.left = "10px";
-      cameraName.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
-      cameraName.style.color = "white";
-      cameraName.style.padding = "5px 10px";
-      cameraName.style.borderRadius = "3px";
-      cameraName.style.fontSize = "16px";
-      cameraName.style.fontWeight = "bold";
-      cameraName.style.zIndex = "101";
-      
-      // Extract camera name from filename
-      const nameMatch = currentVideoPath.match(/\/([^\/]+)_\d{8}_\d{6}\.mp4/);
-      if (nameMatch) {
-        cameraName.textContent = nameMatch[1].replace(/_/g, ' ');
-      }
-      container.appendChild(cameraName);
-
-      // Now set the source to start loading
-      video.src = currentVideoPath;
       container.appendChild(video);
       wrapper.appendChild(container);
       
-      // Store the start time for time-based looping
-      if (!self.motionStartTime) {
-        self.motionStartTime = Date.now();
+      // Store the start time for time-based looping approach
+      if (!this.motionStartTime) {
+        this.motionStartTime = Date.now();
       }
-    } else {
-      console.log("[Motion Video] No motion clips available – falling back to family display");
-      this.showingMotion = false;
-      this.currentDisplay = 'family';
-      if (this.familyImages.length > 0) {
-        this.familyIndex = Math.floor(Math.random() * this.familyImages.length);
-      }
-      this.updateDom();
+        } else {
+          console.log("No motion clips available – falling back to family display");
+          this.showingMotion = false;
+          this.currentDisplay = 'family' 
+          // Randomize family image index
+          if (this.familyImages.length > 0) {
+            this.familyIndex = Math.floor(Math.random() * this.familyImages.length); // Random index
+          }
+          this.updateDom();  // re-render the family display
     }
     break;
         
