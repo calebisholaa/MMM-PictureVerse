@@ -71,6 +71,18 @@ Module.register("MMM-PictureVerse", {
     this.startSequence();
   },
 
+
+  stop() {
+    // BUG FIX #6: Clear all timers when module stops to prevent memory leaks
+    console.log('Stopping MMM-PictureVerse module and clearing all timers');
+    
+    this.clearTimers();
+    
+    if (this.hourlyTimer) {
+      clearInterval(this.hourlyTimer);
+      this.hourlyTimer = null;
+    }
+  },
   getStyles() {
     return ["MMM-PictureVerse.css"];
   },

@@ -9,7 +9,9 @@ module.exports = NodeHelper.create({
     console.log("MMM-PictureVerse helper started");
     this.setupWatchers();
     
+    // BUG FIX #1: Removed duplicate startCleanupScript() call
     this.startCleanupScript();
+    
     // Set up the motion detection monitor
     this.startBlinkMonitor();
 
@@ -27,8 +29,27 @@ module.exports = NodeHelper.create({
     
     // Run initial cleanup
     this.cleanupBlinkImages();
-    this.startCleanupScript();
-
+  },
+  
+  stop() {
+    // Clear all intervals when module stops
+    if (this.dropboxInterval) {
+      clearInterval(this.dropboxInterval);
+    }
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+    }
+    
+    // Stop the Blink monitor
+    this.stopBlinkMonitor();
+    
+    // Close file watchers
+    if (this.watcher) {
+      this.watcher.close();
+    }
+    if (this.picturesWatcher) {
+      this.picturesWatcher.close();
+    }
   },
   
   startBlinkMonitor() {
@@ -38,6 +59,12 @@ module.exports = NodeHelper.create({
     
     // Path to the run script
     const runScript = path.join(__dirname, "run-monitor.sh");
+    
+    // BUG FIX #8: Check if script exists before executing
+    if (!fs.existsSync(runScript)) {
+      console.log("run-monitor.sh not found, skipping motion monitor startup");
+      return;
+    }
     
     // Check if Blink credentials exist
     const credsPath = path.join(__dirname, "python", "creds.json");
@@ -138,6 +165,36 @@ module.exports = NodeHelper.create({
   },
   
   /**
+   * Helper function to check if file matches supported image/video extensions
+   */
+  isMediaFile(filename) {
+    const lowerFilename = filename.toLowerCase();
+    return lowerFilename.endsWith(".jpg") || 
+           lowerFilename.endsWith(".jpeg") || 
+           lowerFilename.endsWith(".png") ||
+           lowerFilename.endsWith(".gif") ||
+           lowerFilename.endsWith(".mp4");
+  },
+  
+  /**
+   * Helper function to check if file is an image
+   */
+  isImageFile(filename) {
+    const lowerFilename = filename.toLowerCase();
+    return lowerFilename.endsWith(".jpg") || 
+           lowerFilename.endsWith(".jpeg") || 
+           lowerFilename.endsWith(".png") ||
+           lowerFilename.endsWith(".gif");
+  },
+  
+  /**
+   * Helper function to check if file is a video
+   */
+  isVideoFile(filename) {
+    return filename.toLowerCase().endsWith(".mp4");
+  },
+  
+  /**
    * Cleans up Blink camera images, retaining only one image per camera per hour
    * This helps prevent accumulation of too many files while keeping the latest snapshot for each hour
    */
@@ -146,23 +203,25 @@ module.exports = NodeHelper.create({
     const path = require("path");
   
     const mediaPath = path.join(__dirname, "python", "media");
-    const RETAIN_HOURS = 2; // keep last 48 hour-buckets per camera; tweak as you like
+    // BUG FIX #3: Fixed misleading comment - actually retains 2 hour-buckets
+    const RETAIN_HOURS = 2; // keep last 2 hour-buckets per camera
   
     if (!fs.existsSync(mediaPath)) {
       console.log("Media directory not found, nothing to clean up");
       return;
     }
   
-    const files = fs.readdirSync(mediaPath)
-      .filter(f => f.toLowerCase().endsWith(".jpg") || f.toLowerCase().endsWith(".mp4"));
+    // BUG FIX #7: Use consistent file filtering
+    const files = fs.readdirSync(mediaPath).filter(f => this.isMediaFile(f));
   
     if (files.length === 0) {
-      console.log("No image files found to clean up");
+      console.log("No media files found to clean up");
       return;
     }
   
-    // Parse: CameraName_YYYYMMDD_HHMMSS.jpg  → groups by (camera, hour)
-    const rx = /^(.+?)_(\d{8})_(\d{2})(\d{4})\.(jpg|jpeg)$/i;
+    // BUG FIX #2: Updated regex to match both jpg/jpeg AND mp4 files
+    // Parse: CameraName_YYYYMMDD_HHMMSS.jpg/mp4 → groups by (camera, hour)
+    const rx = /^(.+?)_(\d{8})_(\d{2})(\d{4})\.(jpg|jpeg|mp4)$/i;
     const byHour = {}; // key: `${camera}_${YYYYMMDD}_${HH}` → files[]
   
     for (const filename of files) {
@@ -223,33 +282,32 @@ module.exports = NodeHelper.create({
       byCamera[camera].push({ key, hourKey });
     }
   
+    // For each camera, sort hour keys descending, keep only top RETAIN_HOURS
     for (const camera of Object.keys(byCamera)) {
-      // Sort newest first
-      byCamera[camera].sort((a, b) => b.hourKey.localeCompare(a.hourKey));
-      const toRemove = byCamera[camera].slice(RETAIN_HOURS); // all older buckets
+      const hourBuckets = byCamera[camera];
+      hourBuckets.sort((a, b) => b.hourKey.localeCompare(a.hourKey));
   
-      for (const { key } of toRemove) {
-        // delete the single kept file in that old hour-bucket
-        const files = byHour[key] || [];
-        for (const f of files) {
-          try {
-            fs.unlinkSync(f.fullPath);
-            console.log(`Deleted old hour-bucket file: ${f.filename}`);
-            deleted++;
-          } catch (e) {
-            console.error(`Error deleting ${f.filename}: ${e}`);
-          }
+      if (hourBuckets.length <= RETAIN_HOURS) continue;
+  
+      // Remove everything beyond RETAIN_HOURS
+      for (let i = RETAIN_HOURS; i < hourBuckets.length; i++) {
+        const oldKey = hourBuckets[i].key;
+        const fileInfo = byHour[oldKey][0]; // We only have one file per hour-bucket now
+        try {
+          fs.unlinkSync(fileInfo.fullPath);
+          console.log(`Deleted old hour-bucket file: ${fileInfo.filename}`);
+          deleted++;
+        } catch (e) {
+          console.error(`Error deleting ${fileInfo.filename}: ${e}`);
         }
-        delete byHour[key];
       }
     }
   
-      console.log(`Cleanup complete: retained ~${Object.keys(byHour).length} hourly files, deleted ${deleted}`);
-    },
+    console.log(`Cleanup complete: Kept ${kept} files, deleted ${deleted} files`);
+  },
   
   /**
-   * Load family images from the Pictures folder, sort by creation time, 
-   * and send to the client with a flag if this was triggered by a new upload
+   * Load family images from the Pictures folder
    * @param {boolean} newUploadDetected - Whether this refresh was triggered by a new file upload
    */
   loadFamilyImages(newUploadDetected = false) {
@@ -261,11 +319,8 @@ module.exports = NodeHelper.create({
       return;
     }
 
-    const fileList = fs.readdirSync(picturesPath)
-      .filter(f => f.toLowerCase().endsWith(".jpg") || 
-                  f.toLowerCase().endsWith(".jpeg") || 
-                  f.toLowerCase().endsWith(".png") ||
-                  f.toLowerCase().endsWith(".gif"));
+    // BUG FIX #7: Use consistent file filtering
+    const fileList = fs.readdirSync(picturesPath).filter(f => this.isImageFile(f));
     
     // Get file stats to sort by creation time (newest first)
     const fileStats = fileList.map(filename => {
@@ -299,9 +354,9 @@ module.exports = NodeHelper.create({
     if (fs.existsSync(mediaPath)) {
       const files = fs.readdirSync(mediaPath);
       
-      // Find the latest image and videos by creation time
-      const imageFiles = files.filter(f => f.endsWith(".jpg"));
-      const videoFiles = files.filter(f => f.endsWith(".mp4"));
+      // BUG FIX #7: Use consistent file filtering
+      const imageFiles = files.filter(f => this.isImageFile(f));
+      const videoFiles = files.filter(f => this.isVideoFile(f));
       
       // Sort by creation time (newest first)
       const sortByCreationTime = (a, b) => {
@@ -338,6 +393,19 @@ module.exports = NodeHelper.create({
       
       const script = path.join(__dirname, "python", "Blink.py");
       const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+      
+      // BUG FIX #8: Check if paths exist before executing
+      if (!fs.existsSync(script)) {
+        console.error(`Blink.py not found at: ${script}`);
+        this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
+        return;
+      }
+      
+      if (!fs.existsSync(pythonExec)) {
+        console.error(`Python executable not found at: ${pythonExec}`);
+        this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
+        return;
+      }
     
       exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
         if (error) {
@@ -353,9 +421,9 @@ module.exports = NodeHelper.create({
         if (fs.existsSync(mediaPath)) {
           const files = fs.readdirSync(mediaPath);
     
-          // Filter for image and video files
-          const imageFiles = files.filter(f => f.endsWith(".jpg")).sort().reverse();
-          const videoFiles = files.filter(f => f.endsWith(".mp4")).sort().reverse();
+          // BUG FIX #7: Use consistent file filtering
+          const imageFiles = files.filter(f => this.isImageFile(f)).sort().reverse();
+          const videoFiles = files.filter(f => this.isVideoFile(f)).sort().reverse();
     
           // Determine current hour timestamp from the newest image or use current time
           const now = new Date();
@@ -425,6 +493,19 @@ module.exports = NodeHelper.create({
     const script = path.join(__dirname, "python", "Dropbox.py");
     const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
     
+    // BUG FIX #8: Check if paths exist before executing
+    if (!fs.existsSync(script)) {
+      console.error(`Dropbox.py not found at: ${script}`);
+      if (callback) callback(false);
+      return;
+    }
+    
+    if (!fs.existsSync(pythonExec)) {
+      console.error(`Python executable not found at: ${pythonExec}`);
+      if (callback) callback(false);
+      return;
+    }
+    
     console.log("Syncing Dropbox images...");
     
     exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
@@ -440,7 +521,7 @@ module.exports = NodeHelper.create({
       }
     });
   },
-    // In the start() function of node_helper.js
+  
   startCleanupScript() {
     const path = require("path");
     const { exec } = require("child_process");
@@ -448,6 +529,17 @@ module.exports = NodeHelper.create({
     // Path to the Python script
     const scriptPath = path.join(__dirname, "python", "CleanUpMedia.py");
     const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+    
+    // BUG FIX #8: Check if paths exist before executing
+    if (!fs.existsSync(scriptPath)) {
+      console.log(`CleanUpMedia.py not found at: ${scriptPath}, skipping`);
+      return;
+    }
+    
+    if (!fs.existsSync(pythonExec)) {
+      console.error(`Python executable not found at: ${pythonExec}`);
+      return;
+    }
     
     console.log("Starting media cleanup script...");
     exec(`${pythonExec} ${scriptPath} &`, (error, stdout, stderr) => {
@@ -461,13 +553,23 @@ module.exports = NodeHelper.create({
 
   fetchVerse() {
     const https = require("https");
-    https.get("https://beta.ourmanna.com/api/v1/get/?format=text", res => {
+    
+    // BUG FIX #4: Add timeout to HTTP request
+    const request = https.get("https://beta.ourmanna.com/api/v1/get/?format=text", res => {
       let data = "";
       res.on("data", chunk => data += chunk);
       res.on("end", () => {
         this.sendSocketNotification("VERSE_RESULT", data.trim());
       });
-    }).on("error", () => {
+    }).on("error", (error) => {
+      console.error(`Error fetching verse: ${error.message}`);
+      this.sendSocketNotification("VERSE_RESULT", "Verse not available.");
+    });
+    
+    // Set timeout to 10 seconds
+    request.setTimeout(10000, () => {
+      console.error("Verse fetch timeout after 10 seconds");
+      request.destroy();
       this.sendSocketNotification("VERSE_RESULT", "Verse not available.");
     });
   }
