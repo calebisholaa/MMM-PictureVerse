@@ -237,7 +237,7 @@ class MotionMonitor:
         for name, camera in self.blink.cameras.items():
             cam_info = CameraInfo(camera, name)
             self.cameras[name] = cam_info
-            Logger.info(f"  • {name} ({cam_info.type_name})")
+            Logger.info(f"  - {name} ({cam_info.type_name})")
         Logger.info("")
     
     async def handle_motion(self, name: str, camera, camera_info: CameraInfo):
@@ -355,7 +355,7 @@ async def initialize_blink(session: ClientSession) -> Blink:
     # Log sync modules
     Logger.info(f"\nSync Modules: {len(blink.sync)}")
     for sync_name, sync in blink.sync.items():
-        Logger.info(f"  • {sync_name}: {sync.status}")
+        Logger.info(f"  - {sync_name}: {sync.status}")
         if hasattr(sync, 'cameras'):
             Logger.info(f"    Cameras: {', '.join(sync.cameras.keys())}")
     

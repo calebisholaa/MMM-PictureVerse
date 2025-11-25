@@ -1,6 +1,6 @@
 {
   "name": "MMM-PictureVerse",
-  "version": "1.2.1",
+  "version": "1.3.1",
   "description": "Display Bible verses, family photos from Dropbox, and Blink camera motion-triggered clips.",
   "main": "MMM-PictureVerse.js",
   "scripts": {
@@ -10,6 +10,7 @@
     "sync-dropbox": "./sync-dropbox.sh",
     "postinstall": "npm install chokidar && ./setup-venv.sh",
     "start-monitor": "./run-monitor.sh",
+    "start-blink-monitor": "./start-blink-monitor.sh",
     "stop-monitor": "pkill -f \"python/BlinkMonitor.py\" || true"
   },
   "dependencies": {
