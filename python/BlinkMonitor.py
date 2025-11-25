@@ -77,10 +77,7 @@ async def monitor_motion(blink):
                 if cam.motion_detected:
                     motion_detected = True
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    print(f"{'='*60}")
-                    print(f"Motion detected on {name} at {timestamp}")
-                    print(f"Camera type: {'Wired' if is_wired else 'Wireless'}")
-                    print(f"{'='*60}")
+                    print(f"🚨 Motion detected on {name} at {timestamp}")
 
                     # Take snapshot first
                     await cam.snap_picture()
@@ -171,20 +168,8 @@ async def start():
             await blink.start()
             await blink.refresh()
 
-            email = blink.auth.login_attributes.get('email', 'Unknown')
-            print(f"✓ Connected as: {email}")
-            
-            # List all sync modules and their cameras
-            print(f"\nSync Modules: {len(blink.sync)}")
-            for sync_name, sync in blink.sync.items():
-                print(f"  - {sync_name}: {sync.status}")
-                print(f"    Cameras: {', '.join(sync.cameras.keys())}")
-            
-            print(f"\nTotal cameras detected: {len(blink.cameras)}")
-            for name in blink.cameras.keys():
-                print(f"  - {name}")
-            
-            print(f"\n{'='*60}\n")
+            print(f"✅ Connected to Blink as {blink.auth.login_attributes.get('email', 'Unknown')}")
+            print(f"📷 Cameras detected: {', '.join(blink.cameras.keys())}\n")
 
             await monitor_motion(blink)
 

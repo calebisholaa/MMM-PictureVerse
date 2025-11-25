@@ -27,7 +27,7 @@ async def run_setup():
 
         print("Login successful. Saving credentials...")
         await blink.save(CREDS_FILE)
-        print(f"Credentials saved to {CREDS_FILE}")
+        print(f"✅ Credentials saved to {CREDS_FILE}")
 
 
 async def main():
