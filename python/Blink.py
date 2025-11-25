@@ -1,5 +1,5 @@
 """
-Blink Camera Snapshot Script - Fixed Version
+Blink Camera Snapshot Script - Fixed Version (No Unicode)
 Fetches snapshots and videos from all Blink cameras
 """
 
@@ -63,16 +63,16 @@ async def save_snapshot(camera, filepath: Path, camera_name: str) -> bool:
         
         if validate_file(filepath):
             file_size = filepath.stat().st_size
-            print(f"  ✓ Snapshot saved: {filepath.name} ({file_size:,} bytes)")
+            print(f"  [OK] Snapshot saved: {filepath.name} ({file_size:,} bytes)")
             return True
         else:
-            print(f"  ✗ Snapshot validation failed")
+            print(f"  [ERROR] Snapshot validation failed")
             if filepath.exists():
                 filepath.unlink()
             return False
             
     except Exception as e:
-        print(f"  ✗ Snapshot error: {e}")
+        print(f"  [ERROR] Snapshot error: {e}")
         return False
 
 
@@ -93,20 +93,20 @@ async def save_video(camera, filepath: Path, camera_name: str, is_wired: bool) -
         
         if validate_file(filepath):
             file_size = filepath.stat().st_size
-            print(f"  ✓ Video saved: {filepath.name} ({file_size:,} bytes)")
+            print(f"  [OK] Video saved: {filepath.name} ({file_size:,} bytes)")
             return True
         else:
-            print(f"  ✗ Video validation failed")
+            print(f"  [ERROR] Video validation failed")
             if filepath.exists():
                 filepath.unlink()
             return False
             
     except asyncio.TimeoutError:
-        print(f"  ✗ Video download timeout after {timeout}s")
+        print(f"  [ERROR] Video download timeout after {timeout}s")
         return False
         
     except Exception as e:
-        print(f"  ✗ Video error: {e}")
+        print(f"  [ERROR] Video error: {e}")
         return False
 
 
@@ -158,7 +158,7 @@ async def fetch_blink_media(session):
         try:
             await cam.snap_picture()
         except Exception as e:
-            print(f"  ✗ Failed to trigger snapshot: {e}")
+            print(f"  [ERROR] Failed to trigger snapshot: {e}")
             continue
         
         # Wait for camera to process (camera-specific time)
@@ -183,7 +183,7 @@ async def fetch_blink_media(session):
             print("  Video available in cache")
             video_success = await save_video(cam, vid_path, name, is_wired)
         else:
-            print("  ℹ No video in cache (this is normal for some cameras)")
+            print("  [INFO] No video in cache (this is normal for some cameras)")
         
         # Track success
         if snapshot_success or video_success:
@@ -210,14 +210,14 @@ async def main():
             success = await fetch_blink_media(session)
             
             if success:
-                print("\n✓ Snapshot fetch completed successfully")
+                print("\n[OK] Snapshot fetch completed successfully")
                 return 0
             else:
-                print("\n✗ No snapshots were saved")
+                print("\n[ERROR] No snapshots were saved")
                 return 1
                 
         except Exception as e:
-            print(f"\n✗ Error: {e}")
+            print(f"\n[ERROR] Error: {e}")
             import traceback
             traceback.print_exc()
             return 1

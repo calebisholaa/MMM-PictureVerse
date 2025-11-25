@@ -62,19 +62,19 @@ class Logger:
     def success(message: str, indent: int = 0):
         """Success message with checkmark"""
         prefix = "  " * indent
-        print(f"{prefix}✓ {message}")
+        print(f"{prefix}[OK] {message}")
     
     @staticmethod
     def error(message: str, indent: int = 0):
         """Error message with X"""
         prefix = "  " * indent
-        print(f"{prefix}✗ {message}")
+        print(f"{prefix}[ERROR] {message}")
     
     @staticmethod
     def warning(message: str, indent: int = 0):
         """Warning message"""
         prefix = "  " * indent
-        print(f"{prefix}⚠ {message}")
+        print(f"{prefix}[WARNING] {message}")
     
     @staticmethod
     def debug(message: str, indent: int = 0):

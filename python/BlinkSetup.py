@@ -46,14 +46,14 @@ async def run_setup():
             await blink.start()
             
             # If we get here, login was successful
-            print("✓ Login successful!")
+            print("[OK] Login successful!")
             
         except Exception as e:
             error_str = str(e).lower()
             
             # FIX: Better error detection and handling
             if "unauthorized" in error_str or "401" in error_str:
-                print("\n✗ Login failed: Invalid username or password")
+                print("\n[ERROR] Login failed: Invalid username or password")
                 print("Please check your credentials and try again")
                 return False
                 
@@ -75,18 +75,18 @@ async def run_setup():
                         await blink.auth.send_auth_key(blink, two_fa)
                         await blink.setup_post_verify()
                         
-                        print("✓ 2FA verification successful!")
+                        print("[OK] 2FA verification successful!")
                         break
                         
                     except Exception as e2:
                         error2_str = str(e2).lower()
                         
                         if "invalid" in error2_str or "incorrect" in error2_str:
-                            print(f"✗ Invalid 2FA code (attempt {attempt}/{max_attempts})")
+                            print(f"[ERROR] Invalid 2FA code (attempt {attempt}/{max_attempts})")
                             if attempt < max_attempts:
                                 print("Please try again")
                         else:
-                            print(f"✗ 2FA verification error: {e2}")
+                            print(f"[ERROR] 2FA verification error: {e2}")
                         
                         if attempt == max_attempts:
                             print("\nToo many failed attempts. Please restart the setup.")
@@ -96,13 +96,13 @@ async def run_setup():
                     return False
                     
             elif "network" in error_str or "connection" in error_str or "timeout" in error_str:
-                print("\n✗ Network error: Could not connect to Blink servers")
+                print("\n[ERROR] Network error: Could not connect to Blink servers")
                 print("Please check your internet connection and try again")
                 return False
                 
             else:
                 # Unknown error
-                print(f"\n✗ Unexpected error during login: {e}")
+                print(f"\n[ERROR] Unexpected error during login: {e}")
                 print("Please check your credentials and try again")
                 if "--debug" in sys.argv:
                     import traceback
@@ -113,7 +113,7 @@ async def run_setup():
         print("\nSaving credentials...")
         try:
             await blink.save(CREDS_FILE)
-            print(f"✓ Credentials saved to {CREDS_FILE}")
+            print(f"[OK] Credentials saved to {CREDS_FILE}")
             
             # Verify the file was created
             if os.path.exists(CREDS_FILE):
@@ -121,14 +121,14 @@ async def run_setup():
                 print(f"  File size: {file_size} bytes")
                 
                 if file_size < 10:
-                    print("  ⚠ Warning: Credentials file seems too small, may be corrupted")
+                    print("  [WARNING] Warning: Credentials file seems too small, may be corrupted")
                     return False
             else:
-                print("  ✗ Error: Credentials file was not created")
+                print("  [ERROR] Error: Credentials file was not created")
                 return False
                 
         except Exception as e:
-            print(f"✗ Error saving credentials: {e}")
+            print(f"[ERROR] Error saving credentials: {e}")
             return False
         
         # Test the connection
@@ -138,7 +138,7 @@ async def run_setup():
             
             # Get account info
             email = blink.auth.login_attributes.get('email', 'Unknown')
-            print(f"✓ Connected as: {email}")
+            print(f"[OK] Connected as: {email}")
             
             # List cameras
             if len(blink.cameras) > 0:
@@ -146,11 +146,11 @@ async def run_setup():
                 for name in blink.cameras.keys():
                     print(f"  • {name}")
             else:
-                print("\n⚠ Warning: No cameras found on this account")
+                print("\n[WARNING] Warning: No cameras found on this account")
                 print("  Make sure cameras are set up in the Blink app first")
             
         except Exception as e:
-            print(f"✗ Error testing connection: {e}")
+            print(f"[ERROR] Error testing connection: {e}")
             print("Credentials were saved but connection test failed")
             print("You may need to run setup again")
             return False
@@ -171,7 +171,7 @@ async def main():
     
     # Check if credentials already exist
     if os.path.exists(CREDS_FILE):
-        print(f"⚠ Warning: Credentials file already exists: {CREDS_FILE}")
+        print(f"[WARNING] Warning: Credentials file already exists: {CREDS_FILE}")
         response = input("Do you want to overwrite it? (y/N): ").strip().lower()
         if response not in ['y', 'yes']:
             print("Setup cancelled.")
@@ -192,13 +192,13 @@ async def main():
     print()
     print("=" * 60)
     if success:
-        print("✓ Setup completed successfully!")
+        print("[OK] Setup completed successfully!")
         print()
         print("Next steps:")
         print("  1. Start the motion monitor: npm run start-blink-monitor")
         print("  2. Or manually fetch snapshots: npm run blink-snapshot")
     else:
-        print("✗ Setup failed")
+        print("[ERROR] Setup failed")
         print()
         print("Troubleshooting:")
         print("  • Verify your Blink username and password")
@@ -215,7 +215,7 @@ if __name__ == "__main__":
         print("\n\nSetup interrupted by user")
         sys.exit(1)
     except Exception as e:
-        print(f"\n✗ Unexpected error: {e}")
+        print(f"\n[ERROR] Unexpected error: {e}")
         if "--debug" in sys.argv:
             import traceback
             traceback.print_exc()

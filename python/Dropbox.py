@@ -1,5 +1,5 @@
 """
-Dropbox sync module for MMM-PictureVerse - FIXED VERSION
+Dropbox sync module for MMM-PictureVerse - FIXED VERSION (No Unicode)
 Downloads photos from Dropbox to local directory
 Uses OAuth2 authentication with automatic token refresh
 FIXED: Added configurable sync mode to prevent accidental deletions
@@ -157,10 +157,10 @@ def download_images():
                         # Verify file was saved
                         if os.path.exists(local_path) and os.path.getsize(local_path) > 0:
                             files_downloaded += 1
-                            print(f"  ✓ Successfully downloaded {filename} ({os.path.getsize(local_path):,} bytes)")
+                            print(f"  [OK] Successfully downloaded {filename} ({os.path.getsize(local_path):,} bytes)")
                         else:
                             files_failed += 1
-                            print(f"  ✗ Download failed: file is empty or missing")
+                            print(f"  [ERROR] Download failed: file is empty or missing")
                             if os.path.exists(local_path):
                                 os.remove(local_path)
                         
@@ -170,12 +170,12 @@ def download_images():
                             
                     except ApiError as e:
                         files_failed += 1
-                        print(f"  ✗ API error downloading {filename}: {e}")
+                        print(f"  [ERROR] API error downloading {filename}: {e}")
                         # Continue with next file instead of failing completely
                         
                     except Exception as e:
                         files_failed += 1
-                        print(f"  ✗ Error downloading {filename}: {e}")
+                        print(f"  [ERROR] Error downloading {filename}: {e}")
             
             print(f"\nDownload summary: {files_downloaded} successful, {files_failed} failed")
             
@@ -201,7 +201,7 @@ def download_images():
                             os.remove(local_path)
                             files_removed += 1
                         except Exception as e:
-                            print(f"  ✗ Error removing {local_file}: {e}")
+                            print(f"  [ERROR] Error removing {local_file}: {e}")
                 
                 print(f"Removed {files_removed} files that are no longer in Dropbox")
             else:
@@ -269,8 +269,8 @@ if __name__ == "__main__":
     success = download_images()
     
     if success:
-        print("\n✓ Dropbox sync completed successfully!")
+        print("\n[OK] Dropbox sync completed successfully!")
         sys.exit(0)
     else:
-        print("\n✗ Dropbox sync failed")
+        print("\n[ERROR] Dropbox sync failed")
         sys.exit(1)
