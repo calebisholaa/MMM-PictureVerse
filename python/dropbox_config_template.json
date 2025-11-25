@@ -1,6 +1,12 @@
 {
-  "app_key": "YOUR_DROPBOX_APP_KEY",
-  "app_secret": "YOUR_DROPBOX_APP_SECRET",
-  "dropbox_folder": "/YOUR_PHOTOS_FOLDER",
-  "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif"]
+  "app_key": "YOUR_APP_KEY_HERE",
+  "app_secret": "YOUR_APP_SECRET_HERE",
+  "dropbox_folder": "/Photos/Family",
+  "allowed_extensions": [".jpg", ".jpeg", ".png", ".gif"],
+  "sync_mode": "download-only",
+  "rate_limit_delay": 0.5,
+  "_comments": {
+    "sync_mode": "Options: 'two-way' (deletes local files not in Dropbox) or 'download-only' (never deletes local files)",
+    "rate_limit_delay": "Delay in seconds between downloads to avoid API rate limits. Set to 0 to disable."
+  }
 }

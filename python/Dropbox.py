@@ -1,7 +1,8 @@
 """
-Dropbox sync module for MMM-PictureVerse
+Dropbox sync module for MMM-PictureVerse - FIXED VERSION
 Downloads photos from Dropbox to local directory
 Uses OAuth2 authentication with automatic token refresh
+FIXED: Added configurable sync mode to prevent accidental deletions
 """
 
 import os
@@ -33,6 +34,17 @@ def load_config():
             print("Warning: dropbox_folder is not specified in config")
         else:
             print(f"Using Dropbox folder: {dropbox_folder}")
+        
+        # NEW: Check sync mode
+        sync_mode = config.get("sync_mode", "two-way")
+        if sync_mode not in ["two-way", "download-only"]:
+            print(f"Warning: Invalid sync_mode '{sync_mode}', using 'two-way'")
+            sync_mode = "two-way"
+        print(f"Sync mode: {sync_mode}")
+        
+        # NEW: Check rate limiting
+        rate_limit_delay = config.get("rate_limit_delay", 0.5)
+        print(f"Rate limit delay: {rate_limit_delay}s between downloads")
             
         return config
     except json.JSONDecodeError as e:
@@ -80,8 +92,11 @@ def download_images():
             print("Error: Local folder is not accessible")
             return False
         
-        # Get allowed file extensions from config or use defaults
+        # Get settings from config
         allowed_extensions = config.get("allowed_extensions", [".jpg", ".jpeg", ".png", ".gif"])
+        sync_mode = config.get("sync_mode", "two-way")
+        rate_limit_delay = config.get("rate_limit_delay", 0.5)
+        
         print(f"Allowed file extensions: {', '.join(allowed_extensions)}")
         
         # Get the Dropbox client with OAuth2
@@ -125,10 +140,12 @@ def download_images():
             
             # Download new files
             files_downloaded = 0
+            files_failed = 0
+            
             for filename, entry in dropbox_files.items():
                 local_path = os.path.join(LOCAL_FOLDER, filename)
                 if not os.path.exists(local_path):  # avoid re-downloading
-                    print(f"Downloading {filename} to {local_path}")
+                    print(f"Downloading {filename}...")
                     try:
                         # Download the file
                         metadata, response = dbx.files_download(entry.path_lower)
@@ -136,40 +153,79 @@ def download_images():
                         # Save to local file
                         with open(local_path, "wb") as f:
                             f.write(response.content)
+                        
+                        # Verify file was saved
+                        if os.path.exists(local_path) and os.path.getsize(local_path) > 0:
+                            files_downloaded += 1
+                            print(f"  ✓ Successfully downloaded {filename} ({os.path.getsize(local_path):,} bytes)")
+                        else:
+                            files_failed += 1
+                            print(f"  ✗ Download failed: file is empty or missing")
+                            if os.path.exists(local_path):
+                                os.remove(local_path)
+                        
+                        # FIX: Add rate limiting to avoid API limits
+                        if rate_limit_delay > 0:
+                            time.sleep(rate_limit_delay)
                             
-                        files_downloaded += 1
-                        print(f"Successfully downloaded {filename}")
+                    except ApiError as e:
+                        files_failed += 1
+                        print(f"  ✗ API error downloading {filename}: {e}")
+                        # Continue with next file instead of failing completely
+                        
                     except Exception as e:
-                        print(f"Error downloading {filename}: {e}")
+                        files_failed += 1
+                        print(f"  ✗ Error downloading {filename}: {e}")
             
-            print(f"Downloaded {files_downloaded} new files")
+            print(f"\nDownload summary: {files_downloaded} successful, {files_failed} failed")
             
-            # Remove files that no longer exist in Dropbox
+            # FIX: Only remove files if sync_mode is "two-way"
             files_removed = 0
-            for local_file in local_files:
-                # Skip hidden files and non-regular files
-                if local_file.startswith('.') or not os.path.isfile(os.path.join(LOCAL_FOLDER, local_file)):
-                    continue
+            if sync_mode == "two-way":
+                print(f"\nSync mode is 'two-way' - checking for files to remove...")
+                
+                for local_file in local_files:
+                    # Skip hidden files and non-regular files
+                    if local_file.startswith('.') or not os.path.isfile(os.path.join(LOCAL_FOLDER, local_file)):
+                        continue
                     
-                if local_file not in dropbox_files:
-                    try:
-                        local_path = os.path.join(LOCAL_FOLDER, local_file)
-                        print(f"Removing {local_file} (no longer in Dropbox)")
-                        os.remove(local_path)
-                        files_removed += 1
-                    except Exception as e:
-                        print(f"Error removing {local_file}: {e}")
-            
-            print(f"Removed {files_removed} files that are no longer in Dropbox")
+                    # Skip files that don't match allowed extensions
+                    if not any(local_file.lower().endswith(ext) for ext in allowed_extensions):
+                        print(f"  Skipping {local_file} (not in allowed extensions)")
+                        continue
+                    
+                    if local_file not in dropbox_files:
+                        try:
+                            local_path = os.path.join(LOCAL_FOLDER, local_file)
+                            print(f"  Removing {local_file} (no longer in Dropbox)")
+                            os.remove(local_path)
+                            files_removed += 1
+                        except Exception as e:
+                            print(f"  ✗ Error removing {local_file}: {e}")
+                
+                print(f"Removed {files_removed} files that are no longer in Dropbox")
+            else:
+                print(f"\nSync mode is 'download-only' - skipping file removal")
+                print("Local files will NOT be deleted even if removed from Dropbox")
             
             # Final verification
             final_files = os.listdir(LOCAL_FOLDER) if os.path.exists(LOCAL_FOLDER) else []
-            print(f"Final file count in local folder: {len(final_files)}")
+            image_files = [f for f in final_files if any(f.lower().endswith(ext) for ext in allowed_extensions)]
+            print(f"\nFinal image count in local folder: {len(image_files)}")
             
             # Sync complete
-            print(f"Dropbox sync completed successfully at {time.strftime('%Y-%m-%d %H:%M:%S')}")
-            print(f"Summary: Downloaded {files_downloaded} files, removed {files_removed} files")
-            return True
+            print(f"\nDropbox sync completed at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+            print("=" * 60)
+            print(f"Summary:")
+            print(f"  - Downloaded: {files_downloaded} files")
+            print(f"  - Failed: {files_failed} files")
+            if sync_mode == "two-way":
+                print(f"  - Removed: {files_removed} files")
+            else:
+                print(f"  - Removed: 0 files (download-only mode)")
+            print("=" * 60)
+            
+            return files_downloaded > 0 or files_removed > 0
             
         except ApiError as e:
             error_message = str(e)
@@ -180,7 +236,10 @@ def download_images():
                 print("Please check that the folder exists in your Dropbox account")
             elif "invalid_access_token" in error_message:
                 print("Error: Invalid access token")
-                print("Please run the OAuth setup again: python DropboxOAuth.py setup")
+                print("Please run the OAuth setup again: npm run setup-dropbox-oauth")
+            elif "rate_limit" in error_message.lower():
+                print("Error: Dropbox API rate limit exceeded")
+                print("Try increasing 'rate_limit_delay' in dropbox_config.json")
             else:
                 print(f"Dropbox API Error: {e}")
                 
@@ -188,21 +247,30 @@ def download_images():
             
         except Exception as e:
             print(f"Error listing Dropbox files: {e}")
+            import traceback
+            traceback.print_exc()
             return False
             
     except Exception as e:
         print(f"Dropbox sync error: {e}")
+        import traceback
+        traceback.print_exc()
         return False
 
 if __name__ == "__main__":
+    print("=" * 60)
+    print("Dropbox Sync Script - Fixed Version")
+    print("=" * 60)
     print(f"Python version: {sys.version}")
     print(f"Script directory: {SCRIPT_DIR}")
+    print("=" * 60)
+    print()
     
     success = download_images()
     
     if success:
-        print("Dropbox sync completed successfully!")
+        print("\n✓ Dropbox sync completed successfully!")
         sys.exit(0)
     else:
-        print("Dropbox sync failed")
+        print("\n✗ Dropbox sync failed")
         sys.exit(1)
