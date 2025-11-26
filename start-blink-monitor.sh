@@ -19,10 +19,8 @@ pkill -f "python/BlinkMonitor.py" || true
 
 # Start the motion monitor in the background
 echo "Starting Blink motion monitor..."
-nohup python/venv/bin/python python/BlinkMonitor.py > logs/blink_monitor.log 2>&1 &
 
 # Save the PID
 echo $! > .blink_monitor.pid
 
 echo "Blink motion monitor started with PID $(cat .blink_monitor.pid)"
-echo "Log file: logs/blink_monitor.log"
