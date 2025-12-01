@@ -9,7 +9,7 @@ Module.register("MMM-PictureVerse", {
     prioritizeMotionClips: true,   // Interrupt normal flow to show motion clips
     motionClipDisplayTime: 30000,  // How long to show motion clips (30 sec)
     showBlink: true,               // Enable blink camera integration
-    sequential: true,              // Use sequential order for family photos (false = random)
+    sequential: false,              // Use sequential order for family photos (false = random)
     alwaysShowNewestFirst: true,   // Show newest upload first, then continue with sequence
     
     // Image display settings
