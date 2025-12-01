@@ -314,92 +314,95 @@ Module.register("MMM-PictureVerse", {
     }
 
     if (notification === "FAMILY_IMAGES") {
-      // Check if we received the new payload format
-      const hasNewUpload = payload.newUpload !== undefined;
-      
-      // Get the images from the appropriate property
-      const imageList = hasNewUpload ? payload.images : payload;
-      
-      // Log received images for debugging
-      console.log(`Received ${imageList.length} family images${hasNewUpload && payload.newUpload ? " with new upload" : ""}`);
-      
-      // Store the new list of images
-      this.familyImages = imageList;
-      
-      // If randomization is enabled, create a randomized order (but keep original list for reference)
-      if (!this.config.sequential) {
-        if (!this.familyRandomOrder || (hasNewUpload && payload.newUpload)) {
-          this.familyRandomOrder = [...Array(this.familyImages.length).keys()];
-          
-          let newestImageIndex = null;
-          if (this.config.alwaysShowNewestFirst && this.familyImages.length > 1) {
-            newestImageIndex = 0;
-            this.familyRandomOrder.shift();
-          }
-          
-          for (let i = this.familyRandomOrder.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [this.familyRandomOrder[i], this.familyRandomOrder[j]] = 
-            [this.familyRandomOrder[j], this.familyRandomOrder[i]];
-          }
-          
-          if (newestImageIndex !== null) {
-            this.familyRandomOrder.unshift(newestImageIndex);
-          }
-          
-          this.familyRandomIndex = 0;
-          console.log("Created new randomized order:", this.familyRandomOrder);
-        } else if (this.familyRandomOrder.length < this.familyImages.length) {
-          const oldLength = this.familyRandomOrder.length;
-          const newIndices = [...Array(this.familyImages.length - oldLength).keys()]
-                             .map(i => i + oldLength);
-          
-          for (let i = newIndices.length - 1; i > 0; i--) {
-            const j = Math.floor(Math.random() * (i + 1));
-            [newIndices[i], newIndices[j]] = [newIndices[j], newIndices[i]];
-          }
-          
-          this.familyRandomOrder = this.familyRandomOrder.concat(newIndices);
-          console.log("Updated randomized order with new images:", this.familyRandomOrder);
-        }
+    // Check if we received the new payload format
+    const hasNewUpload = payload.newUpload !== undefined;
+    
+    // Get the images from the appropriate property
+    const imageList = hasNewUpload ? payload.images : payload;
+    
+    // Log received images for debugging
+    console.log(`Received ${imageList.length} family images${hasNewUpload && payload.newUpload ? " with new upload" : ""}`);
+    
+    // Store the new list of images
+    this.familyImages = imageList;
+    
+    // === IMPROVED RANDOMIZATION LOGIC ===
+    // TRUE RANDOM: Every photo appears exactly once per cycle
+    if (!this.config.sequential) {
+      // Check if we need to create or recreate the random order
+      if (!this.familyRandomOrder || this.familyRandomOrder.length !== this.familyImages.length) {
+        console.log("Creating new random shuffle for all images...");
+        this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+        this.familyRandomIndex = 0;
+        console.log(`Shuffled ${this.familyRandomOrder.length} photos - all will be shown once per cycle`);
       }
       
-      // Set initial index
-      if (this.familyImages.length > 0) {
-        if (hasNewUpload && payload.newUpload) {
-          // 🔴 OLD: only switched if already in family mode
-          // 🟢 NEW: always interrupt, no matter what is showing
-          console.log("New upload detected, interrupting to show newest image immediately");
+      // Check if we've completed a full cycle - reshuffle!
+      if (this.familyRandomIndex >= this.familyRandomOrder.length) {
+        console.log("Completed full cycle through all photos! Reshuffling...");
+        this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+        this.familyRandomIndex = 0;
+      }
+    }
     
+    // === IMMEDIATE SHOWING OF NEW UPLOADS ===
+    if (this.familyImages.length > 0) {
+      if (hasNewUpload && payload.newUpload) {
+        console.log("NEW UPLOAD DETECTED - Showing immediately!");
+        
+        // Show the newest photo (always at index 0)
+        this.familyIndex = 0;
+        
+        if (!this.config.sequential) {
+          // After showing newest, continue with random order
+          // Create fresh shuffle so newest doesn't have priority
+          this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+          this.familyRandomIndex = 0;
+        }
+        
+        // Stop all timers (verse, camera, motion, family)
+        this.clearTimers();
+        
+        // Force switch to family mode
+        this.currentDisplay = "family";
+        
+        // Update display + restart family slideshow
+        this.updateDom();
+        this.startFamilyTimer();
+      } else {
+        // No new upload - just ensure index is valid
+        if (!this.config.sequential) {
+          if (this.familyRandomIndex >= this.familyRandomOrder.length) {
+            // Completed cycle, reshuffle
+            this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+            this.familyRandomIndex = 0;
+          }
+        } else if (this.familyIndex >= this.familyImages.length) {
           this.familyIndex = 0;
-          this.familyRandomIndex = 0;
-    
-          // Stop all timers (verse, camera, motion, family)
-          this.clearTimers();
-    
-          // Force switch to family mode
-          this.currentDisplay = "family";
-    
-          // Update display + restart family slideshow
-          this.updateDom();
-          this.startFamilyTimer();
-        } else {
-          // Otherwise just ensure index is valid
-          if (!this.config.sequential) {
-            if (!this.familyRandomIndex || this.familyRandomIndex >= this.familyRandomOrder.length) {
-              this.familyRandomIndex = 0;
-            }
-          } else if (this.familyIndex >= this.familyImages.length) {
-            this.familyIndex = 0;
-          }
         }
       }
-      
-      this.checkAllLoaded();
-      this.updateDom();
-    }    
+    }
+    
+    this.checkAllLoaded();
+    this.updateDom();
+    }
   },
-
+/**
+   * Create a perfectly shuffled array using Fisher-Yates algorithm
+   * Ensures every photo appears exactly once per cycle
+   */
+  createShuffledArray(length) {
+    // Create array [0, 1, 2, ..., length-1]
+    const array = Array.from({length: length}, (_, i) => i);
+    
+    // Fisher-Yates shuffle for perfect randomization
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    
+    return array;
+  },
   // Check if all required data is loaded
   checkAllLoaded() {
     if (!this.loaded && this.bibleVerse && (this.familyImages.length > 0 || this.cameraImages.length > 0)) {
