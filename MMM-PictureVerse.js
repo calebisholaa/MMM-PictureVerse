@@ -348,16 +348,27 @@ Module.register("MMM-PictureVerse", {
     // === IMMEDIATE SHOWING OF NEW UPLOADS ===
     if (this.familyImages.length > 0) {
       if (hasNewUpload && payload.newUpload) {
+        const newestImagePath = this.familyImages[0];
+  
+        // Skip if we just showed this same image
+        if (this.lastShownNewest === newestImagePath) {
+          console.log("Newest photo already shown recently, skipping duplicate trigger");
+          return;
+        }
+  
         console.log("NEW UPLOAD DETECTED - Showing immediately!");
-        
+        this.lastShownNewest = newestImagePath;
         // Show the newest photo (always at index 0)
         this.familyIndex = 0;
         
         if (!this.config.sequential) {
           // After showing newest, continue with random order
           // Create fresh shuffle so newest doesn't have priority
-          this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+          this.familyRandomOrder = this.createShuffledArray(this.familyImages.length,1);
           this.familyRandomIndex = 0;
+          
+          console.log(`Created shuffle of ${this.familyRandomOrder.length} photos (excluding newest)`);
+
         }
         
         // Stop all timers (verse, camera, motion, family)
@@ -387,13 +398,15 @@ Module.register("MMM-PictureVerse", {
     this.updateDom();
     }
   },
-/**
+  /**
    * Create a perfectly shuffled array using Fisher-Yates algorithm
-   * Ensures every photo appears exactly once per cycle
+   * @param {number} length - Total number of items
+   * @param {number} excludeFirst - Number of items to exclude from start (default 0)
+   * @returns {Array} Shuffled indices
    */
-  createShuffledArray(length) {
-    // Create array [0, 1, 2, ..., length-1]
-    const array = Array.from({length: length}, (_, i) => i);
+  createShuffledArray(length, excludeFirst = 0) {
+    // Create array starting after excluded items [excludeFirst, excludeFirst+1, ..., length-1]
+    const array = Array.from({length: length - excludeFirst}, (_, i) => i + excludeFirst);
     
     // Fisher-Yates shuffle for perfect randomization
     for (let i = array.length - 1; i > 0; i--) {
@@ -401,6 +414,7 @@ Module.register("MMM-PictureVerse", {
       [array[i], array[j]] = [array[j], array[i]];
     }
     
+    console.log(`Shuffled array: [${array.slice(0, 5).join(', ')}...] (${array.length} total)`);
     return array;
   },
   // Check if all required data is loaded

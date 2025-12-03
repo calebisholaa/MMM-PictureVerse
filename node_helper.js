@@ -7,6 +7,10 @@ const chokidar = require("chokidar"); // For watching file system changes
 module.exports = NodeHelper.create({
   start() {
     console.log("MMM-PictureVerse helper started");
+
+    this.knownFiles = new Set();
+    this.isInitialScan = true;
+
     this.setupWatchers();
     
     // BUG FIX #1: Removed duplicate startCleanupScript() call
@@ -154,13 +158,34 @@ module.exports = NodeHelper.create({
       }
     });
     
-    // When files are added or removed, update the image list
-    this.picturesWatcher.on("all", (event) => {
-      if (event === "add" || event === "unlink") {
-        console.log(`Pictures folder ${event} detected, updating image list`);
-        // Pass true to indicate a new upload was detected
-        this.loadFamilyImages(event === "add");
+      // Initialize known files on startup (BEFORE watching)
+    if (fs.existsSync(picturesPath)) {
+      const existingFiles = fs.readdirSync(picturesPath).filter(f => this.isImageFile(f));
+      existingFiles.forEach(file => this.knownFiles.add(file));
+      console.log(`Initialized with ${this.knownFiles.size} existing files in Pictures folder`);
+    }
+
+    // Handle file additions - check if truly NEW
+    this.picturesWatcher.on("add", (filePath) => {
+      const filename = path.basename(filePath);
+      
+      // Only treat as NEW if we haven't seen this file before
+      if (!this.knownFiles.has(filename) && this.isImageFile(filename)) {
+        console.log(`NEW upload detected: ${filename}`);
+        this.knownFiles.add(filename);
+        this.loadFamilyImages(true);  // TRUE = new upload
+      } else {
+        console.log(`Known file re-detected: ${filename}`);
+        this.loadFamilyImages(false);  // FALSE = just refresh
       }
+    });
+
+    // Handle file removals
+    this.picturesWatcher.on("unlink", (filePath) => {
+      const filename = path.basename(filePath);
+      console.log(`File removed from Pictures: ${filename}`);
+      this.knownFiles.delete(filename);
+      this.loadFamilyImages(false);  // Not a new upload, just refresh
     });
   },
   
@@ -388,78 +413,77 @@ module.exports = NodeHelper.create({
     }
 
     if (notification === "REQUEST_BLINK") {
-      // Clean up old images first
-      this.cleanupBlinkImages();
-      
-      const script = path.join(__dirname, "python", "Blink.py");
-      const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
-      
-      // BUG FIX #8: Check if paths exist before executing
-      if (!fs.existsSync(script)) {
-        console.error(`Blink.py not found at: ${script}`);
-        this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
-        return;
-      }
-      
-      if (!fs.existsSync(pythonExec)) {
-        console.error(`Python executable not found at: ${pythonExec}`);
-        this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
-        return;
-      }
-    
-      exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
-        if (error) {
-          console.error(`Error executing Blink.py: ${error}`);
-          console.error(stderr);
-          return;
-        }
-    
-        console.log("Blink.py output:", stdout);
-        this.cleanupBlinkImages(); // Clean up after new images are fetched
-    
-        const mediaPath = path.join(__dirname, "python", "media");
-        if (fs.existsSync(mediaPath)) {
-          const files = fs.readdirSync(mediaPath);
-    
-          // BUG FIX #7: Use consistent file filtering
-          const imageFiles = files.filter(f => this.isImageFile(f)).sort().reverse();
-          const videoFiles = files.filter(f => this.isVideoFile(f)).sort().reverse();
-    
-          // Determine current hour timestamp from the newest image or use current time
-          const now = new Date();
-          const currentHourPrefix = now.toISOString().slice(0, 10).replace(/-/g, '') + '_' + 
-                                     String(now.getHours()).padStart(2, '0');
-          
-          // First, try to find images from the current hour
-          let matchingImages = imageFiles.filter(filename => {
-            const match = filename.match(/(\d{8}_\d{2})\d{4}/);
-            return match && match[1] === currentHourPrefix;
-          });
-          
-          // If no images from current hour, include all images from today
-          if (matchingImages.length === 0) {
-            const todayPrefix = now.toISOString().slice(0, 10).replace(/-/g, '');
-            matchingImages = imageFiles.filter(filename => filename.includes(todayPrefix));
-            
-            // If still no images, just use all images
-            if (matchingImages.length === 0) {
-              matchingImages = imageFiles;
-            }
-          }
-          
-          console.log(`Found ${matchingImages.length} matching camera images for current hour/day`);
-    
-          this.sendSocketNotification("BLINK_MEDIA_READY", {
-            images: matchingImages.map(f => `modules/MMM-PictureVerse/python/media/${f}`),
-            videos: videoFiles.map(v => `modules/MMM-PictureVerse/python/media/${v}`)
-          });
-        } else {
-          console.log("Media directory not found");
-          this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
-        }
-      });
+  // Clean up old images first
+  this.cleanupBlinkImages();
+  
+  const script = path.join(__dirname, "python", "Blink.py");
+  const pythonExec = path.join(__dirname, "python", "venv", "bin", "python");
+  
+  if (!fs.existsSync(script)) {
+    console.error(`Blink.py not found at: ${script}`);
+    this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
+    return;
+  }
+  
+  if (!fs.existsSync(pythonExec)) {
+    console.error(`Python executable not found at: ${pythonExec}`);
+    this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
+    return;
+  }
+
+  exec(`${pythonExec} ${script}`, (error, stdout, stderr) => {
+    if (error) {
+      console.error(`Error executing Blink.py: ${error}`);
+      console.error(stderr);
+      return;
     }
 
+    console.log("Blink.py output:", stdout);
+    this.cleanupBlinkImages(); // Clean up after new images are fetched
+
+    const mediaPath = path.join(__dirname, "python", "media");
+    if (fs.existsSync(mediaPath)) {
+      const files = fs.readdirSync(mediaPath);
+
+      // Get all image and video files
+      const imageFiles = files.filter(f => this.isImageFile(f));
+      const videoFiles = files.filter(f => this.isVideoFile(f));
+      
+      // Sort by filename (which contains timestamp) - newest first
+      imageFiles.sort().reverse();
+      videoFiles.sort().reverse();
+      
+      // Group images by camera name to ensure we get one per camera
+      const imagesByCamera = {};
+      
+      imageFiles.forEach(filename => {
+        // Extract camera name from filename (e.g., "Garage_20241203_143022.jpg" -> "Garage")
+        const match = filename.match(/^(.+?)_\d{8}_\d{6}/);
+        if (match) {
+          const cameraName = match[1];
+          // Keep only the newest image per camera
+          if (!imagesByCamera[cameraName]) {
+            imagesByCamera[cameraName] = filename;
+          }
+        }
+      });
+      
+      // Get the list of newest images (one per camera)
+      const newestImages = Object.values(imagesByCamera);
+      
+      console.log(`Found ${newestImages.length} camera images (one per camera)`);
+      console.log(`Camera names: ${Object.keys(imagesByCamera).join(', ')}`);
+
+      this.sendSocketNotification("BLINK_MEDIA_READY", {
+        images: newestImages.map(f => `modules/MMM-PictureVerse/python/media/${f}`),
+        videos: videoFiles.map(v => `modules/MMM-PictureVerse/python/media/${v}`)
+      });
+    } else {
+      console.log("Media directory not found");
+      this.sendSocketNotification("BLINK_MEDIA_READY", { images: [], videos: [] });
+    }
+  });
+}
     if (notification === "SYNC_DROPBOX") {
       // Directly sync with Dropbox without waiting for loadFamilyImages
       console.log("Performing immediate Dropbox sync on startup");
