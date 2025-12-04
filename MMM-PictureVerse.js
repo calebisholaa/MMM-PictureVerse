@@ -312,90 +312,102 @@ Module.register("MMM-PictureVerse", {
       this.checkAllLoaded();
       this.updateDom();
     }
-
+    
     if (notification === "FAMILY_IMAGES") {
-    // Check if we received the new payload format
-    const hasNewUpload = payload.newUpload !== undefined;
-    
-    // Get the images from the appropriate property
-    const imageList = hasNewUpload ? payload.images : payload;
-    
-    // Log received images for debugging
-    console.log(`Received ${imageList.length} family images${hasNewUpload && payload.newUpload ? " with new upload" : ""}`);
-    
-    // Store the new list of images
-    this.familyImages = imageList;
-    
-    // === IMPROVED RANDOMIZATION LOGIC ===
-    // TRUE RANDOM: Every photo appears exactly once per cycle
-    if (!this.config.sequential) {
-      // Check if we need to create or recreate the random order
-      if (!this.familyRandomOrder || this.familyRandomOrder.length !== this.familyImages.length) {
-        console.log("Creating new random shuffle for all images...");
-        this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
-        this.familyRandomIndex = 0;
-        console.log(`Shuffled ${this.familyRandomOrder.length} photos - all will be shown once per cycle`);
+      // Check if we received the new payload format
+      const hasNewUpload = payload.newUpload !== undefined;
+      
+      // Get the images from the appropriate property
+      const imageList = hasNewUpload ? payload.images : payload;
+      
+      // Log received images for debugging
+      console.log(`Received ${imageList.length} family images${hasNewUpload && payload.newUpload ? " with new upload" : ""}`);
+      
+      // Store the new list of images
+      this.familyImages = imageList;
+      
+      // === IMPROVED RANDOMIZATION LOGIC ===
+      // TRUE RANDOM: Every photo appears exactly once per cycle
+      if (!this.config.sequential) {
+        // Check if we need to create or recreate the random order
+        if (!this.familyRandomOrder || this.familyRandomOrder.length !== this.familyImages.length) {
+          console.log("Creating new random shuffle for all images...");
+          this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+          this.familyRandomIndex = 0;
+          console.log(`Shuffled ${this.familyRandomOrder.length} photos - all will be shown once per cycle`);
+        }
+        
+        // Check if we've completed a full cycle - reshuffle!
+        if (this.familyRandomIndex >= this.familyRandomOrder.length) {
+          console.log("Completed full cycle through all photos! Reshuffling...");
+          this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+          this.familyRandomIndex = 0;
+        }
       }
       
-      // Check if we've completed a full cycle - reshuffle!
-      if (this.familyRandomIndex >= this.familyRandomOrder.length) {
-        console.log("Completed full cycle through all photos! Reshuffling...");
-        this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
-        this.familyRandomIndex = 0;
-      }
-    }
-    
-    // === IMMEDIATE SHOWING OF NEW UPLOADS ===
-    if (this.familyImages.length > 0) {
-      if (hasNewUpload && payload.newUpload) {
-        const newestImagePath = this.familyImages[0];
-  
-        // Skip if we just showed this same image
-        if (this.lastShownNewest === newestImagePath) {
-          console.log("Newest photo already shown recently, skipping duplicate trigger");
-          return;
-        }
-  
-        console.log("NEW UPLOAD DETECTED - Showing immediately!");
-        this.lastShownNewest = newestImagePath;
-        // Show the newest photo (always at index 0)
-        this.familyIndex = 0;
-        
-        if (!this.config.sequential) {
-          // After showing newest, continue with random order
-          // Create fresh shuffle so newest doesn't have priority
-          this.familyRandomOrder = this.createShuffledArray(this.familyImages.length,1);
-          this.familyRandomIndex = 0;
-          
-          console.log(`Created shuffle of ${this.familyRandomOrder.length} photos (excluding newest)`);
+      // === IMMEDIATE SHOWING OF NEW UPLOADS ===
+      if (this.familyImages.length > 0) {
+        if (hasNewUpload && payload.newUpload) {
+          const newestImagePath = this.familyImages[0];
 
-        }
-        
-        // Stop all timers (verse, camera, motion, family)
-        this.clearTimers();
-        
-        // Force switch to family mode
-        this.currentDisplay = "family";
-        
-        // Update display + restart family slideshow
-        this.updateDom();
-        this.startFamilyTimer();
-      } else {
-        // No new upload - just ensure index is valid
-        if (!this.config.sequential) {
-          if (this.familyRandomIndex >= this.familyRandomOrder.length) {
-            // Completed cycle, reshuffle
-            this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
-            this.familyRandomIndex = 0;
+          // Skip if we just showed this same image
+          if (this.lastShownNewest === newestImagePath) {
+            console.log("Newest photo already shown recently, skipping duplicate trigger");
+            return;
           }
-        } else if (this.familyIndex >= this.familyImages.length) {
+
+          console.log("NEW UPLOAD DETECTED - Showing immediately!");
+          this.lastShownNewest = newestImagePath;
+          
+          // Show the newest photo (always at index 0)
           this.familyIndex = 0;
+          
+          if (!this.config.sequential) {
+            // Create a NEW shuffle that includes ALL photos (including the newest)
+            // But make sure the newest photo is NOT first in the shuffle
+            // This way it won't show again until the cycle progresses naturally
+            this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+            
+            // If the newest photo (index 0) ended up first in the shuffle, swap it
+            if (this.familyRandomOrder[0] === 0) {
+              // Swap with a random position further in the array
+              const swapPos = Math.floor(Math.random() * (this.familyRandomOrder.length - 1)) + 1;
+              [this.familyRandomOrder[0], this.familyRandomOrder[swapPos]] = 
+              [this.familyRandomOrder[swapPos], this.familyRandomOrder[0]];
+              console.log(`Moved newest photo from position 0 to position ${swapPos} in shuffle`);
+            }
+            
+            // Start from the beginning of the shuffle (which is now NOT the newest photo)
+            this.familyRandomIndex = 0;
+            
+            console.log(`Created new shuffle of ${this.familyRandomOrder.length} photos (newest is at position ${this.familyRandomOrder.indexOf(0)})`);
+          }
+          
+          // Stop all timers (verse, camera, motion, family)
+          this.clearTimers();
+          
+          // Force switch to family mode
+          this.currentDisplay = "family";
+          
+          // Update display + restart family slideshow
+          this.updateDom();
+          this.startFamilyTimer();
+        } else {
+          // No new upload - just ensure index is valid
+          if (!this.config.sequential) {
+            if (this.familyRandomIndex >= this.familyRandomOrder.length) {
+              // Completed cycle, reshuffle
+              this.familyRandomOrder = this.createShuffledArray(this.familyImages.length);
+              this.familyRandomIndex = 0;
+            }
+          } else if (this.familyIndex >= this.familyImages.length) {
+            this.familyIndex = 0;
+          }
         }
       }
-    }
-    
-    this.checkAllLoaded();
-    this.updateDom();
+      
+      this.checkAllLoaded();
+      this.updateDom();
     }
   },
   /**
