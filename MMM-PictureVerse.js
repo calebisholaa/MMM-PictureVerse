@@ -181,14 +181,18 @@ Module.register("MMM-PictureVerse", {
   },
 
   // Start timer for cycling camera images
+// Start timer for cycling camera images
   startCameraTimer() {
+    console.log(`[Timer] Starting camera timer (${this.cameraImages.length} images available)`);
+    
     if (this.cameraImages.length === 0) {
-      console.log("No camera images to cycle through");
+      console.warn("[Timer] No camera images to cycle through");
       return;
     }
     
     if (this.timer) {
       clearTimeout(this.timer);
+      this.timer = null;
     }
     
     this.timer = setTimeout(() => {
@@ -201,14 +205,18 @@ Module.register("MMM-PictureVerse", {
   },
 
   // Start timer for cycling family images
+// Start timer for cycling family images
   startFamilyTimer() {
+    console.log(`[Timer] Starting family timer (${this.familyImages.length} images available)`);
+    
     if (this.familyImages.length === 0) {
-      console.log("No family images to cycle through");
+      console.warn("[Timer] No family images to cycle through");
       return;
     }
     
     if (this.timer) {
       clearTimeout(this.timer);
+      this.timer = null;
     }
     
     this.timer = setTimeout(() => {
@@ -287,23 +295,43 @@ Module.register("MMM-PictureVerse", {
           this.videoIndex = 0;
           this.updateDom();
           
-          // Set timer to return to previous state
+         // Set timer to return to previous state WITH PROPER STATE MANAGEMENT
           this.motionTimer = setTimeout(() => {
             console.log("Motion display time ended, returning to previous state");
-            this.showingMotion = false;
-            this.currentDisplay = this.previousDisplay;
-            this.motionVideos = [];
-            this.motionStartTime = null; // Reset the timer
             
-            // If returning to family display, make sure we restart the family timer
-            if (this.previousDisplay === "family") {
-              this.startFamilyTimer();
-            } 
-            // If returning to camera display, make sure we restart the camera timer
-            else if (this.previousDisplay === "camera") {
-              this.startCameraTimer();
+            // Validate we're actually in motion mode to avoid double-recovery
+            if (!this.showingMotion) {
+              console.warn("Motion timer fired but we're not in motion mode - already recovered");
+              return;
             }
             
+            // Clean up motion state
+            this.showingMotion = false;
+            const returnTo = this.previousDisplay || 'family';
+            this.currentDisplay = returnTo;
+            this.motionVideos = [];
+            this.motionStartTime = null;
+            this.videoIndex = 0;
+            
+            console.log(`[Motion Timer] Returning to ${returnTo} display mode`);
+            
+            // Restart appropriate timer based on what we're returning to
+            if (returnTo === "family") {
+              if (this.familyImages.length > 0) {
+                this.startFamilyTimer();
+              } else {
+                console.warn("[Motion Timer] No family images available");
+              }
+            } 
+            else if (returnTo === "camera") {
+              if (this.cameraImages.length > 0) {
+                this.startCameraTimer();
+              } else {
+                console.warn("[Motion Timer] No camera images available");
+              }
+            }
+            
+            // Force immediate DOM update
             this.updateDom();
           }, this.config.motionClipDisplayTime);
         }
@@ -487,6 +515,24 @@ Module.register("MMM-PictureVerse", {
   },
 
   getDom() {
+    // ==================== SAFETY CHECK - START ====================
+    // CRITICAL FIX: Detect and recover from invalid states
+    if (this.currentDisplay === "motion" && (!this.showingMotion || this.motionVideos.length === 0)) {
+      console.warn("[Safety Check] Invalid motion state detected, resetting to previous display");
+      this.showingMotion = false;
+      this.currentDisplay = this.previousDisplay || 'family';
+      this.motionVideos = [];
+      this.motionStartTime = null;
+      this.videoIndex = 0;
+      
+      if (this.currentDisplay === 'family' && this.familyImages.length > 0) {
+        this.startFamilyTimer();
+      } else if (this.currentDisplay === 'camera' && this.cameraImages.length > 0) {
+        this.startCameraTimer();
+      }
+    }
+    // ==================== SAFETY CHECK - END ====================
+    
     if (this.fullscreen && (this.currentDisplay === "family" || this.currentDisplay === "camera")) {
       return this.getFullscreenDom();
     }
@@ -772,25 +818,48 @@ Module.register("MMM-PictureVerse", {
             console.warn(`[Motion Video] Media element emptied`);
           };
           
-          // Handle video end
+         // Handle video end
           self.handleVideoEnd = function() {
             const elapsedTime = Date.now() - self.motionStartTime;
             
             console.log(`[Motion Video] Video ended. Elapsed: ${elapsedTime}ms / ${self.config.motionClipDisplayTime}ms`);
-
-            if (elapsedTime < self.config.motionClipDisplayTime) {
+            console.log(`[Motion Video] Current video: ${self.videoIndex + 1}/${self.motionVideos.length}`);
+            
+            // Check if we should continue showing motion clips
+            if (elapsedTime < self.config.motionClipDisplayTime && self.showingMotion) {
               if (self.videoIndex < self.motionVideos.length - 1) {
+                // Move to next video
                 self.videoIndex++;
                 console.log(`[Motion Video] Advancing to next video (${self.videoIndex + 1}/${self.motionVideos.length})`);
                 self.updateDom();
               } else {
                 // Loop back to start
                 self.videoIndex = 0;
-                console.log(`[Motion Video] Restarting from first video`);
+                console.log(`[Motion Video] Looping back to first video`);
                 self.updateDom();
               }
             } else {
-              console.log(`[Motion Video] Time limit reached, returning to normal sequence`);
+              // Time limit reached or no longer in motion mode
+              console.log(`[Motion Video] handleVideoEnd: Time limit reached or exited motion mode`);
+              
+              if (self.showingMotion) {
+                // Clean up and return to previous display
+                self.showingMotion = false;
+                self.currentDisplay = self.previousDisplay || 'family';
+                self.motionVideos = [];
+                self.motionStartTime = null;
+                self.videoIndex = 0;
+                
+                console.log(`[Motion Video] handleVideoEnd: Returning to ${self.currentDisplay}`);
+                
+                if (self.currentDisplay === 'family') {
+                  self.startFamilyTimer();
+                } else if (self.currentDisplay === 'camera') {
+                  self.startCameraTimer();
+                }
+                
+                self.updateDom();
+              }
             }
           };
           
@@ -803,16 +872,53 @@ Module.register("MMM-PictureVerse", {
           video.style.left = "auto";
           video.style.top = "auto";
 
-          // Watchdog timer as backup
+         // Watchdog timer as GUARANTEED backup to ensure we always return to normal display
           setTimeout(() => {
             const elapsedTime = Date.now() - self.motionStartTime;
-            if (elapsedTime >= self.config.motionClipDisplayTime) {
-              console.log("[Motion Video] Watchdog: forcing exit from motion mode");
+            
+            // Only intervene if we're still in motion mode after the time limit
+            if (elapsedTime >= self.config.motionClipDisplayTime && self.showingMotion) {
+              console.log("[Motion Video] Watchdog: Time limit exceeded, forcing exit from motion mode");
+              console.log(`[Motion Video] Watchdog: Elapsed ${elapsedTime}ms, Limit ${self.config.motionClipDisplayTime}ms`);
+              
+              // Cancel any existing motion timer
+              if (self.motionTimer) {
+                clearTimeout(self.motionTimer);
+                self.motionTimer = null;
+              }
+              
+              // Properly restore state
               self.showingMotion = false;
-              self.currentDisplay = self.previousDisplay;
+              self.currentDisplay = self.previousDisplay || 'family';
               self.motionVideos = [];
               self.motionStartTime = null;
+              self.videoIndex = 0;
+              
+              console.log(`[Motion Video] Watchdog: Returning to ${self.currentDisplay} mode`);
+              
+              // Restart appropriate timers based on what we're returning to
+              if (self.currentDisplay === 'family') {
+                if (self.familyImages.length > 0) {
+                  console.log("[Motion Video] Watchdog: Restarting family timer");
+                  self.startFamilyTimer();
+                } else {
+                  console.warn("[Motion Video] Watchdog: No family images to display");
+                }
+              } else if (self.currentDisplay === 'camera') {
+                if (self.cameraImages.length > 0) {
+                  console.log("[Motion Video] Watchdog: Restarting camera timer");
+                  self.startCameraTimer();
+                } else {
+                  console.warn("[Motion Video] Watchdog: No camera images to display");
+                }
+              }
+              
+              // Force immediate DOM update
               self.updateDom();
+            } else if (!self.showingMotion) {
+              console.log("[Motion Video] Watchdog: Already exited motion mode, no action needed");
+            } else {
+              console.log(`[Motion Video] Watchdog: Still within time limit (${elapsedTime}ms/${self.config.motionClipDisplayTime}ms)`);
             }
           }, self.config.motionClipDisplayTime + 2000);
 
