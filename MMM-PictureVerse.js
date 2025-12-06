@@ -872,55 +872,56 @@ Module.register("MMM-PictureVerse", {
           video.style.left = "auto";
           video.style.top = "auto";
 
-         // Watchdog timer as GUARANTEED backup to ensure we always return to normal display
-          setTimeout(() => {
+         // AGGRESSIVE WATCHDOG: Check frequently and recover FAST - eliminates blank screen gap
+          const aggressiveWatchdog = setInterval(() => {
             const elapsedTime = Date.now() - self.motionStartTime;
             
-            // Only intervene if we're still in motion mode after the time limit
-            if (elapsedTime >= self.config.motionClipDisplayTime && self.showingMotion) {
-              console.log("[Motion Video] Watchdog: Time limit exceeded, forcing exit from motion mode");
-              console.log(`[Motion Video] Watchdog: Elapsed ${elapsedTime}ms, Limit ${self.config.motionClipDisplayTime}ms`);
+            // Recover if time limit reached OR video ended
+            const timeLimitReached = elapsedTime >= self.config.motionClipDisplayTime;
+            const videoEndedLong = video.ended && elapsedTime > 3000;
+            
+            if ((timeLimitReached || videoEndedLong) && self.showingMotion) {
+              console.log("[Aggressive Watchdog] Forcing immediate recovery");
+              console.log(`  Elapsed: ${elapsedTime}ms, Video ended: ${video.ended}, Limit: ${self.config.motionClipDisplayTime}ms`);
               
-              // Cancel any existing motion timer
+              clearInterval(aggressiveWatchdog);
+              
               if (self.motionTimer) {
                 clearTimeout(self.motionTimer);
                 self.motionTimer = null;
               }
               
-              // Properly restore state
               self.showingMotion = false;
               self.currentDisplay = self.previousDisplay || 'family';
               self.motionVideos = [];
               self.motionStartTime = null;
               self.videoIndex = 0;
               
-              console.log(`[Motion Video] Watchdog: Returning to ${self.currentDisplay} mode`);
+              console.log(`[Aggressive Watchdog] Returning to ${self.currentDisplay}`);
               
-              // Restart appropriate timers based on what we're returning to
-              if (self.currentDisplay === 'family') {
-                if (self.familyImages.length > 0) {
-                  console.log("[Motion Video] Watchdog: Restarting family timer");
-                  self.startFamilyTimer();
-                } else {
-                  console.warn("[Motion Video] Watchdog: No family images to display");
-                }
-              } else if (self.currentDisplay === 'camera') {
-                if (self.cameraImages.length > 0) {
-                  console.log("[Motion Video] Watchdog: Restarting camera timer");
-                  self.startCameraTimer();
-                } else {
-                  console.warn("[Motion Video] Watchdog: No camera images to display");
-                }
+              if (self.currentDisplay === 'family' && self.familyImages.length > 0) {
+                console.log("[Aggressive Watchdog] Restarting family timer");
+                self.startFamilyTimer();
+              } else if (self.currentDisplay === 'camera' && self.cameraImages.length > 0) {
+                console.log("[Aggressive Watchdog] Restarting camera timer");
+                self.startCameraTimer();
               }
               
-              // Force immediate DOM update
-              self.updateDom();
-            } else if (!self.showingMotion) {
-              console.log("[Motion Video] Watchdog: Already exited motion mode, no action needed");
-            } else {
-              console.log(`[Motion Video] Watchdog: Still within time limit (${elapsedTime}ms/${self.config.motionClipDisplayTime}ms)`);
+              // FORCE immediate DOM update with NO animation delay
+              console.log("[Aggressive Watchdog] Forcing immediate DOM update");
+              self.updateDom(0);
+              
+              // Safety: Update again after 100ms
+              setTimeout(() => {
+                console.log("[Aggressive Watchdog] Safety double-check update");
+                self.updateDom(0);
+              }, 100);
             }
-          }, self.config.motionClipDisplayTime + 2000);
+            
+            if (!self.showingMotion) {
+              clearInterval(aggressiveWatchdog);
+            }
+          }, 200); // Check every 200ms - VERY AGGRESSIVE
 
           // Add timestamp overlay
           const timestamp = document.createElement("div");
