@@ -9,7 +9,7 @@ import os
 import sys
 from aiohttp import ClientSession
 from blinkpy.blinkpy import Blink
-from blinkpy.auth import Auth
+from blinkpy.auth import Auth, BlinkTwoFARequiredError
 
 
 CREDS_FILE = os.path.join(os.path.dirname(__file__), "creds.json")
@@ -43,40 +43,12 @@ async def run_setup():
 
         try:
             await blink.start()
-        except Exception as e:
-            print(f"[WARNING] Login raised exception: {e}")
-
-        # If urls is None, login didn't fully complete - likely needs 2FA
-        if blink.urls is None:
+            print("[OK] Login successful!")
+        except BlinkTwoFARequiredError:
             print("\n2FA (Two-Factor Authentication) required")
             print("A verification code has been sent to your email/phone")
-            print()
-
-            max_attempts = 3
-            verified = False
-            for attempt in range(1, max_attempts + 1):
-                two_fa = input(f"Enter the 2FA code (attempt {attempt}/{max_attempts}): ").strip()
-
-                if not two_fa:
-                    print("Error: 2FA code cannot be empty")
-                    continue
-
-                try:
-                    await blink.auth.complete_2fa_login(two_fa)
-                    await blink.setup_post_verify()
-                    print("[OK] 2FA verification successful!")
-                    verified = True
-                    break
-                except Exception as e2:
-                    print(f"[ERROR] 2FA verification failed: {e2}")
-                    if attempt < max_attempts:
-                        print("Please try again")
-
-            if not verified:
-                print("\nToo many failed attempts. Please restart the setup.")
-                return False
-        else:
-            print("[OK] Login successful!")
+            await blink.prompt_2fa()
+            print("[OK] 2FA verification successful!")
 
         # Save credentials
         print("\nSaving credentials...")

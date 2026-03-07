@@ -343,16 +343,9 @@ async def initialize_blink(session: ClientSession) -> Blink:
     
     blink = Blink(session=session)
     blink.auth = Auth(creds, no_prompt=True)
-    
+
     Logger.info("Connecting to Blink servers...")
     await blink.start()
-
-    if blink.urls is None:
-        raise RuntimeError(
-            "Blink login failed - server rejected connection. "
-            "Try upgrading blinkpy: pip install --upgrade blinkpy"
-        )
-
     await blink.refresh()
     
     # Log connection info
