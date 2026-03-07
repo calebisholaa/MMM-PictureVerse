@@ -42,80 +42,41 @@ async def run_setup():
         blink.auth = auth
 
         try:
-            # Attempt initial login
             await blink.start()
-
-            # Check if login actually succeeded (blink.start() doesn't raise on failure)
-            if blink.urls is None:
-                print("\n[ERROR] Login failed: Blink server rejected the connection")
-                print("This usually means:")
-                print("  - Your blinkpy version is outdated (try: pip install --upgrade blinkpy)")
-                print("  - Blink servers are temporarily down")
-                print("  - Your credentials have expired")
-                return False
-
-            print("[OK] Login successful!")
-            
         except Exception as e:
-            error_str = str(e).lower()
-            
-            # FIX: Better error detection and handling
-            if "unauthorized" in error_str or "401" in error_str:
-                print("\n[ERROR] Login failed: Invalid username or password")
-                print("Please check your credentials and try again")
+            print(f"[WARNING] Login raised exception: {e}")
+
+        # If urls is None, login didn't fully complete - likely needs 2FA
+        if blink.urls is None:
+            print("\n2FA (Two-Factor Authentication) required")
+            print("A verification code has been sent to your email/phone")
+            print()
+
+            max_attempts = 3
+            verified = False
+            for attempt in range(1, max_attempts + 1):
+                two_fa = input(f"Enter the 2FA code (attempt {attempt}/{max_attempts}): ").strip()
+
+                if not two_fa:
+                    print("Error: 2FA code cannot be empty")
+                    continue
+
+                try:
+                    await blink.auth.send_auth_key(blink, two_fa)
+                    await blink.setup_post_verify()
+                    print("[OK] 2FA verification successful!")
+                    verified = True
+                    break
+                except Exception as e2:
+                    print(f"[ERROR] 2FA verification failed: {e2}")
+                    if attempt < max_attempts:
+                        print("Please try again")
+
+            if not verified:
+                print("\nToo many failed attempts. Please restart the setup.")
                 return False
-                
-            elif "2fa" in error_str or "two factor" in error_str or "verification" in error_str:
-                print("\n2FA (Two-Factor Authentication) required")
-                print("A verification code has been sent to your email/phone")
-                print()
-                
-                max_attempts = 3
-                for attempt in range(1, max_attempts + 1):
-                    two_fa = input(f"Enter the 2FA code (attempt {attempt}/{max_attempts}): ").strip()
-                    
-                    if not two_fa:
-                        print("Error: 2FA code cannot be empty")
-                        continue
-                    
-                    try:
-                        # Send the 2FA code
-                        await blink.auth.send_auth_key(blink, two_fa)
-                        await blink.setup_post_verify()
-                        
-                        print("[OK] 2FA verification successful!")
-                        break
-                        
-                    except Exception as e2:
-                        error2_str = str(e2).lower()
-                        
-                        if "invalid" in error2_str or "incorrect" in error2_str:
-                            print(f"[ERROR] Invalid 2FA code (attempt {attempt}/{max_attempts})")
-                            if attempt < max_attempts:
-                                print("Please try again")
-                        else:
-                            print(f"[ERROR] 2FA verification error: {e2}")
-                        
-                        if attempt == max_attempts:
-                            print("\nToo many failed attempts. Please restart the setup.")
-                            return False
-                else:
-                    # Loop completed without break (all attempts failed)
-                    return False
-                    
-            elif "network" in error_str or "connection" in error_str or "timeout" in error_str:
-                print("\n[ERROR] Network error: Could not connect to Blink servers")
-                print("Please check your internet connection and try again")
-                return False
-                
-            else:
-                # Unknown error
-                print(f"\n[ERROR] Unexpected error during login: {e}")
-                print("Please check your credentials and try again")
-                if "--debug" in sys.argv:
-                    import traceback
-                    traceback.print_exc()
-                return False
+        else:
+            print("[OK] Login successful!")
 
         # Save credentials
         print("\nSaving credentials...")
