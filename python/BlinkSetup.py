@@ -144,7 +144,7 @@ async def run_setup():
             if len(blink.cameras) > 0:
                 print(f"\nFound {len(blink.cameras)} camera(s):")
                 for name in blink.cameras.keys():
-                    print(f"  • {name}")
+                    print(f"  - {name}")
             else:
                 print("\n[WARNING] Warning: No cameras found on this account")
                 print("  Make sure cameras are set up in the Blink app first")
@@ -201,10 +201,10 @@ async def main():
         print("[ERROR] Setup failed")
         print()
         print("Troubleshooting:")
-        print("  • Verify your Blink username and password")
-        print("  • Check your internet connection")
-        print("  • Make sure 2FA codes are entered correctly")
-        print("  • Run with --debug flag for more details")
+        print("  - Verify your Blink username and password")
+        print("  - Check your internet connection")
+        print("  - Make sure 2FA codes are entered correctly")
+        print("  - Run with --debug flag for more details")
     print("=" * 60)
 
 
