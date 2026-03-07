@@ -44,8 +44,16 @@ async def run_setup():
         try:
             # Attempt initial login
             await blink.start()
-            
-            # If we get here, login was successful
+
+            # Check if login actually succeeded (blink.start() doesn't raise on failure)
+            if blink.urls is None:
+                print("\n[ERROR] Login failed: Blink server rejected the connection")
+                print("This usually means:")
+                print("  - Your blinkpy version is outdated (try: pip install --upgrade blinkpy)")
+                print("  - Blink servers are temporarily down")
+                print("  - Your credentials have expired")
+                return False
+
             print("[OK] Login successful!")
             
         except Exception as e:

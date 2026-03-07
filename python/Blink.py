@@ -131,6 +131,13 @@ async def fetch_blink_media(session):
     
     print("Connecting to Blink servers...")
     await blink.start()
+
+    if blink.urls is None:
+        raise RuntimeError(
+            "Blink login failed - server rejected connection. "
+            "Try upgrading blinkpy: pip install --upgrade blinkpy"
+        )
+
     await blink.refresh()
     
     # Create media folder
