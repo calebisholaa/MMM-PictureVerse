@@ -62,7 +62,7 @@ async def run_setup():
                     continue
 
                 try:
-                    await blink.auth.send_auth_key(blink, two_fa)
+                    await blink.auth.complete_2fa_login(two_fa)
                     await blink.setup_post_verify()
                     print("[OK] 2FA verification successful!")
                     verified = True
