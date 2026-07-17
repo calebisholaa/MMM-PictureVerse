@@ -4,46 +4,57 @@ Monitors Blink cameras for motion and saves snapshots/videos
 """
 
 import asyncio
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Dict, Any
+from typing import Optional, Dict
 
 from aiohttp import ClientSession
 from blinkpy.blinkpy import Blink
 from blinkpy.auth import Auth
 from blinkpy.helpers.util import json_load
 
+from blink_common import (
+    MEDIA_FOLDER,
+    CREDS_FILE,
+    CAPTURE_WAIT_WIRED,
+    CAPTURE_WAIT_WIRELESS,
+    DOWNLOAD_TIMEOUT_WIRED,
+    DOWNLOAD_TIMEOUT_WIRELESS,
+    MIN_FILE_SIZE,
+    is_wired_camera,
+    validate_file as _validate_file,
+    get_media_path,
+)
+
 
 # ==================== CONFIGURATION ====================
 class Config:
-    """Centralized configuration"""
-    SCRIPT_DIR = Path(__file__).parent.absolute()
-    MEDIA_FOLDER = SCRIPT_DIR / "media"
-    CREDS_FILE = SCRIPT_DIR / "creds.json"
-    
+    """Monitor-specific configuration (shared paths/timeouts live in blink_common)"""
+    MEDIA_FOLDER = MEDIA_FOLDER
+    CREDS_FILE = CREDS_FILE
+
     # Timeouts (in seconds)
-    DOWNLOAD_TIMEOUT_WIRED = 45
-    DOWNLOAD_TIMEOUT_WIRELESS = 30
-    
+    DOWNLOAD_TIMEOUT_WIRED = DOWNLOAD_TIMEOUT_WIRED
+    DOWNLOAD_TIMEOUT_WIRELESS = DOWNLOAD_TIMEOUT_WIRELESS
+
     # Retry settings
     MAX_RETRIES_WIRED = 3
     MAX_RETRIES_WIRELESS = 2
     RETRY_DELAY = 3
-    
+
     # Wait times after capturing (in seconds)
-    CAPTURE_WAIT_WIRED = 8
-    CAPTURE_WAIT_WIRELESS = 3
-    
+    CAPTURE_WAIT_WIRED = CAPTURE_WAIT_WIRED
+    CAPTURE_WAIT_WIRELESS = CAPTURE_WAIT_WIRELESS
+
     # Monitoring
     CHECK_INTERVAL = 30  # How often to check for motion
     STATUS_LOG_INTERVAL = 60  # How often to log "no motion" status
-    
+
     # File size validation
-    MIN_IMAGE_SIZE = 1000  # 1KB minimum
-    MIN_VIDEO_SIZE = 1000  # 1KB minimum
-    
+    MIN_IMAGE_SIZE = MIN_FILE_SIZE
+    MIN_VIDEO_SIZE = MIN_FILE_SIZE
+
     # Debug mode
     DEBUG = True  # Set to False to reduce verbose logging
 
@@ -107,22 +118,14 @@ class CameraInfo:
     def is_wired(self) -> bool:
         """Check if camera is wired (cached)"""
         if self._is_wired is None:
-            self._is_wired = (
-                hasattr(self.camera, 'camera_type') and 
-                'wired' in str(self.camera.camera_type).lower()
-            )
+            self._is_wired = is_wired_camera(self.camera)
         return self._is_wired
     
     @property
     def type_name(self) -> str:
         """Get camera type name"""
         return "Wired" if self.is_wired else "Wireless"
-    
-    @property
-    def safe_name(self) -> str:
-        """Get filesystem-safe camera name"""
-        return self.name.replace(" ", "_")
-    
+
     def get_timeout(self) -> int:
         """Get appropriate download timeout for this camera"""
         return Config.DOWNLOAD_TIMEOUT_WIRED if self.is_wired else Config.DOWNLOAD_TIMEOUT_WIRELESS
@@ -143,21 +146,15 @@ class MediaHandler:
     @staticmethod
     def validate_file(filepath: Path, min_size: int) -> bool:
         """Validate that file exists and meets minimum size"""
-        if not filepath.exists():
-            return False
-        
-        file_size = filepath.stat().st_size
-        if file_size < min_size:
-            Logger.debug(f"File too small: {file_size} bytes (min: {min_size})", indent=2)
-            return False
-        
-        return True
-    
+        valid = _validate_file(filepath, min_size)
+        if not valid and filepath.exists():
+            Logger.debug(f"File too small: {filepath.stat().st_size} bytes (min: {min_size})", indent=2)
+        return valid
+
     @staticmethod
     def get_file_path(camera_info: CameraInfo, timestamp: str, extension: str) -> Path:
         """Generate file path for media"""
-        filename = f"{camera_info.safe_name}_{timestamp}.{extension}"
-        return Config.MEDIA_FOLDER / filename
+        return get_media_path(camera_info.name, timestamp, extension)
     
     @staticmethod
     async def save_snapshot(camera, camera_info: CameraInfo, timestamp: str) -> Optional[Path]:

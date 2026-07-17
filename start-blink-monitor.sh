@@ -11,6 +11,12 @@ if [ ! -d "python/venv" ]; then
   exit 1
 fi
 
+# Check if Blink credentials exist
+if [ ! -f "python/creds.json" ]; then
+  echo "Blink credentials not found. Please run 'npm run setup-blink' first."
+  exit 1
+fi
+
 # Create log directory if it doesn't exist
 mkdir -p logs
 
@@ -19,6 +25,7 @@ pkill -f "python/BlinkMonitor.py" || true
 
 # Start the motion monitor in the background
 echo "Starting Blink motion monitor..."
+"python/venv/bin/python" "python/BlinkMonitor.py" >> logs/blink_monitor.log 2>&1 &
 
 # Save the PID
 echo $! > .blink_monitor.pid

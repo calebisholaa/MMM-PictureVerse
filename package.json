@@ -8,7 +8,7 @@
     "setup-blink": "./setup-blink.sh",
     "setup-dropbox-oauth": "./setup-dropbox-oauth.sh",
     "sync-dropbox": "./sync-dropbox.sh",
-    "postinstall": "npm install chokidar && ./setup-venv.sh",
+    "postinstall": "./setup-venv.sh",
     "start-monitor": "./run-monitor.sh",
     "start-blink-monitor": "./start-blink-monitor.sh",
     "stop-monitor": "pkill -f \"python/BlinkMonitor.py\" || true"

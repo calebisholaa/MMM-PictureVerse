@@ -22,6 +22,7 @@
   opacity: 1;
   z-index: 0;
 }
+
 .verse {
   color: white;
   font-size: 2em;
@@ -73,6 +74,7 @@
   width: 100%;
   height: 100%;
   position: relative;
+  background-color: rgba(0, 0, 0, 0.7);
 }
 
 .camera-container .blessed-image,
@@ -102,13 +104,13 @@
 /* Styling for timestamp overlays */
 .timestamp {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 20px;
+  right: 20px;
   background-color: rgba(0, 0, 0, 0.6);
   color: #fff;
-  padding: 0.3em 0.6em;
+  padding: 0.5em 1em;
   border-radius: 0.3em;
-  font-size: 0.8em;
+  font-size: 1em;
   z-index: 2;
 }
 
@@ -119,6 +121,12 @@
   100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
 }
 
+.motion-alert {
+  animation: pulse 2s infinite;
+  border: 2px solid red;
+  font-weight: bold;
+  font-size: 1.2em;
+}
 
 /* Transition animations */
 @keyframes fadeIn {
@@ -137,43 +145,4 @@
 
 .fade-out {
   animation: fadeOut 1s ease-out forwards;
-}
-
-/* Motion container styling */
-.motion-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  position: relative;
-  background-color: rgba(0, 0, 0, 0.7);
-}
-
-/* Animation for motion alerts */
-@keyframes pulse {
-  0% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0.7); }
-  70% { box-shadow: 0 0 0 10px rgba(255, 0, 0, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(255, 0, 0, 0); }
-}
-
-.motion-alert {
-  animation: pulse 2s infinite;
-  border: 2px solid red;
-  font-weight: bold;
-  font-size: 1.2em;
-}
-
-/* Styling for timestamp overlays */
-.timestamp {
-  position: absolute;
-  bottom: 20px;
-  right: 20px;
-  background-color: rgba(0, 0, 0, 0.6);
-  color: #fff;
-  padding: 0.5em 1em;
-  border-radius: 0.3em;
-  font-size: 1em;
-  z-index: 2;
 }

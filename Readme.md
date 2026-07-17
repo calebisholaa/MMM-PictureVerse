@@ -176,6 +176,8 @@ The built-in motion detection system works seamlessly:
 3. After the configured display time, it returns to the normal display sequence
 4. All monitoring happens automatically in the background with no user intervention required
 
+If you need to control the monitor process directly (for example while testing outside of MagicMirror), see [Manually Controlling the Blink Monitor](#manually-controlling-the-blink-monitor) below.
+
 ## Module Configuration
 
 Add the module to your `config/config.js` file:
@@ -290,8 +292,30 @@ ps aux | grep BlinkMonitor.py
 
 # Restart the Blink monitor
 npm run stop-monitor
-npm run start-monitor
+npm run start-blink-monitor
 ```
+
+### Manually Controlling the Blink Monitor
+
+MagicMirror starts the motion monitor for you automatically, so you normally don't need this. It's useful when running/debugging the monitor on its own, outside of MagicMirror:
+
+```bash
+# Start the monitor in the background (logs to logs/blink_monitor.log)
+npm run start-blink-monitor
+
+# Stop the monitor
+npm run stop-monitor
+```
+
+### Manual Media Cleanup
+
+The module automatically prunes old Blink snapshots and clips (keeping the last couple of hours per camera) on its own hourly schedule while MagicMirror is running. If you want to run that same cleanup independently — e.g. from a cron job on a machine where MagicMirror isn't running — use:
+
+```bash
+npm run cleanup-media
+```
+
+This runs `python/CleanUpMedia.py`, which applies the same per-camera, per-hour retention policy and logs to `logs/blink_cleanup.log`.
 
 ### Updating OAuth2 Credentials
 

@@ -1,11 +1,10 @@
 """
-Blink Camera Snapshot Script - Fixed Version (No Unicode)
+Blink Camera Snapshot Script
 Fetches snapshots and videos from all Blink cameras
 """
 
 import json
 import asyncio
-import os
 from datetime import datetime
 from pathlib import Path
 
@@ -13,47 +12,33 @@ from aiohttp import ClientSession
 from blinkpy.blinkpy import Blink
 from blinkpy.auth import Auth
 
-
-# ==================== CONFIGURATION ====================
-SCRIPT_DIR = Path(__file__).parent.absolute()
-MEDIA_FOLDER = SCRIPT_DIR / "media"
-CREDS_FILE = SCRIPT_DIR / "creds.json"
-
-# Camera-specific settings
-WAIT_TIME_WIRED = 8      # Wired cameras need more time
-WAIT_TIME_WIRELESS = 3   # Wireless cameras are faster
-
-# File validation
-MIN_FILE_SIZE = 1000     # 1KB minimum for valid files
-
-# Timeouts
-DOWNLOAD_TIMEOUT_WIRED = 45
-DOWNLOAD_TIMEOUT_WIRELESS = 30
-
-
-# ==================== HELPER FUNCTIONS ====================
-def is_wired_camera(camera) -> bool:
-    """Check if camera is wired type"""
-    return (
-        hasattr(camera, 'camera_type') and 
-        'wired' in str(camera.camera_type).lower()
-    )
+from blink_common import (
+    MEDIA_FOLDER,
+    CREDS_FILE,
+    WAIT_TIME_WIRED,
+    WAIT_TIME_WIRELESS,
+    DOWNLOAD_TIMEOUT_WIRED,
+    DOWNLOAD_TIMEOUT_WIRELESS,
+    MIN_FILE_SIZE,
+    is_wired_camera,
+    get_media_path,
+)
 
 
 def validate_file(filepath: Path, min_size: int = MIN_FILE_SIZE) -> bool:
     """Validate that file exists and has content"""
     if not filepath.exists():
         return False
-    
+
     file_size = filepath.stat().st_size
     if file_size < min_size:
         print(f"  File too small: {file_size} bytes (min: {min_size})")
         return False
-    
+
     return True
 
 
-async def save_snapshot(camera, filepath: Path, camera_name: str) -> bool:
+async def save_snapshot(camera, filepath: Path) -> bool:
     """
     Save camera snapshot with validation
     Returns True if successful, False otherwise
@@ -76,7 +61,7 @@ async def save_snapshot(camera, filepath: Path, camera_name: str) -> bool:
         return False
 
 
-async def save_video(camera, filepath: Path, camera_name: str, is_wired: bool) -> bool:
+async def save_video(camera, filepath: Path, is_wired: bool) -> bool:
     """
     Save motion video with timeout and validation
     Returns True if successful, False otherwise
@@ -169,18 +154,17 @@ async def fetch_blink_media(session):
         await blink.refresh()
         
         # Prepare file paths
-        base_name = name.replace(" ", "_")
-        img_path = MEDIA_FOLDER / f"{base_name}_{timestamp}.jpg"
-        vid_path = MEDIA_FOLDER / f"{base_name}_{timestamp}.mp4"
+        img_path = get_media_path(name, timestamp, "jpg")
+        vid_path = get_media_path(name, timestamp, "mp4")
         
         # Save snapshot
-        snapshot_success = await save_snapshot(cam, img_path, name)
-        
+        snapshot_success = await save_snapshot(cam, img_path)
+
         # Try to save video if available
         video_success = False
         if cam.video_from_cache:
             print("  Video available in cache")
-            video_success = await save_video(cam, vid_path, name, is_wired)
+            video_success = await save_video(cam, vid_path, is_wired)
         else:
             print("  [INFO] No video in cache (this is normal for some cameras)")
         

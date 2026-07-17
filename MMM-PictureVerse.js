@@ -37,6 +37,7 @@ Module.register("MMM-PictureVerse", {
     this.loaded = false;
     this.showingMotion = false;
     this.motionTimer = null;
+    this.motionWatchdogInterval = null;
     this.wrapper = null;
     this.fullscreen = false;
     this.timer = null;
@@ -71,13 +72,11 @@ Module.register("MMM-PictureVerse", {
     this.startSequence();
   },
 
-
   stop() {
-    // BUG FIX #6: Clear all timers when module stops to prevent memory leaks
     console.log('Stopping MMM-PictureVerse module and clearing all timers');
-    
+
     this.clearTimers();
-    
+
     if (this.hourlyTimer) {
       clearInterval(this.hourlyTimer);
       this.hourlyTimer = null;
@@ -126,6 +125,11 @@ Module.register("MMM-PictureVerse", {
     if (this.motionTimer) {
       clearTimeout(this.motionTimer);
       this.motionTimer = null;
+    }
+
+    if (this.motionWatchdogInterval) {
+      clearInterval(this.motionWatchdogInterval);
+      this.motionWatchdogInterval = null;
     }
   },
 
@@ -181,7 +185,6 @@ Module.register("MMM-PictureVerse", {
   },
 
   // Start timer for cycling camera images
-// Start timer for cycling camera images
   startCameraTimer() {
     console.log(`[Timer] Starting camera timer (${this.cameraImages.length} images available)`);
     
@@ -205,7 +208,6 @@ Module.register("MMM-PictureVerse", {
   },
 
   // Start timer for cycling family images
-// Start timer for cycling family images
   startFamilyTimer() {
     console.log(`[Timer] Starting family timer (${this.familyImages.length} images available)`);
     
@@ -295,7 +297,7 @@ Module.register("MMM-PictureVerse", {
           this.videoIndex = 0;
           this.updateDom();
           
-         // Set timer to return to previous state WITH PROPER STATE MANAGEMENT
+          // Set timer to return to previous state once motion display time elapses
           this.motionTimer = setTimeout(() => {
             console.log("Motion display time ended, returning to previous state");
             
@@ -354,8 +356,7 @@ Module.register("MMM-PictureVerse", {
       // Store the new list of images
       this.familyImages = imageList;
       
-      // === IMPROVED RANDOMIZATION LOGIC ===
-      // TRUE RANDOM: Every photo appears exactly once per cycle
+      // Every photo appears exactly once per shuffle cycle before reshuffling
       if (!this.config.sequential) {
         // Check if we need to create or recreate the random order
         if (!this.familyRandomOrder || this.familyRandomOrder.length !== this.familyImages.length) {
@@ -373,7 +374,7 @@ Module.register("MMM-PictureVerse", {
         }
       }
       
-      // === IMMEDIATE SHOWING OF NEW UPLOADS ===
+      // Show newly uploaded photos immediately
       if (this.familyImages.length > 0) {
         if (hasNewUpload && payload.newUpload) {
           const newestImagePath = this.familyImages[0];
@@ -515,8 +516,8 @@ Module.register("MMM-PictureVerse", {
   },
 
   getDom() {
-    // ==================== SAFETY CHECK - START ====================
-    // CRITICAL FIX: Detect and recover from invalid states
+    // Detect and recover from an invalid motion state (e.g. currentDisplay is
+    // "motion" but showingMotion was already cleared, or no videos remain)
     if (this.currentDisplay === "motion" && (!this.showingMotion || this.motionVideos.length === 0)) {
       console.warn("[Safety Check] Invalid motion state detected, resetting to previous display");
       this.showingMotion = false;
@@ -524,15 +525,15 @@ Module.register("MMM-PictureVerse", {
       this.motionVideos = [];
       this.motionStartTime = null;
       this.videoIndex = 0;
-      
+
       if (this.currentDisplay === 'family' && this.familyImages.length > 0) {
         this.startFamilyTimer();
       } else if (this.currentDisplay === 'camera' && this.cameraImages.length > 0) {
         this.startCameraTimer();
       }
     }
-    // ==================== SAFETY CHECK - END ====================
-    
+
+
     if (this.fullscreen && (this.currentDisplay === "family" || this.currentDisplay === "camera")) {
       return this.getFullscreenDom();
     }
@@ -549,7 +550,6 @@ Module.register("MMM-PictureVerse", {
     }
 
     switch (this.currentDisplay) {
-            // Updated verse display case for getRegularDom method
       case "verse":
         // Create an outer wrapper for positioning
         const verseWrapper = document.createElement("div");
@@ -631,8 +631,7 @@ Module.register("MMM-PictureVerse", {
           wrapper.innerHTML = "Camera images not available";
         }
         break;
-        
-              // This should replace the 'motion' case in your getRegularDom method
+
       case "motion":
         if (this.motionVideos.length > 0) {
           const container = document.createElement("div");
@@ -872,20 +871,27 @@ Module.register("MMM-PictureVerse", {
           video.style.left = "auto";
           video.style.top = "auto";
 
-         // AGGRESSIVE WATCHDOG: Check frequently and recover FAST - eliminates blank screen gap
-          const aggressiveWatchdog = setInterval(() => {
+         // Watchdog: checks frequently so recovery from a stuck/ended video is fast.
+          // Only one watchdog may run at a time - clear any interval left over from
+          // a previous render (e.g. the previous video in this motion sequence),
+          // otherwise each video advance would leave its old watchdog polling forever.
+          if (self.motionWatchdogInterval) {
+            clearInterval(self.motionWatchdogInterval);
+          }
+          self.motionWatchdogInterval = setInterval(() => {
             const elapsedTime = Date.now() - self.motionStartTime;
-            
+
             // Recover if time limit reached OR video ended
             const timeLimitReached = elapsedTime >= self.config.motionClipDisplayTime;
             const videoEndedLong = video.ended && elapsedTime > 3000;
-            
+
             if ((timeLimitReached || videoEndedLong) && self.showingMotion) {
               console.log("[Aggressive Watchdog] Forcing immediate recovery");
               console.log(`  Elapsed: ${elapsedTime}ms, Video ended: ${video.ended}, Limit: ${self.config.motionClipDisplayTime}ms`);
-              
-              clearInterval(aggressiveWatchdog);
-              
+
+              clearInterval(self.motionWatchdogInterval);
+              self.motionWatchdogInterval = null;
+
               if (self.motionTimer) {
                 clearTimeout(self.motionTimer);
                 self.motionTimer = null;
@@ -919,9 +925,10 @@ Module.register("MMM-PictureVerse", {
             }
             
             if (!self.showingMotion) {
-              clearInterval(aggressiveWatchdog);
+              clearInterval(self.motionWatchdogInterval);
+              self.motionWatchdogInterval = null;
             }
-          }, 200); // Check every 200ms - VERY AGGRESSIVE
+          }, 200); // Check every 200ms
 
           // Add timestamp overlay
           const timestamp = document.createElement("div");

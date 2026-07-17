@@ -24,9 +24,10 @@ if [ ! -f "python/creds.json" ]; then
   exit 1
 fi
 
-# Start the monitor, discard output
+# Start the monitor, logging output for troubleshooting
+mkdir -p logs
 echo "Starting Blink monitor at $(date)"
-"$PYTHON" "$SCRIPT" > /dev/null 2>&1 &
+"$PYTHON" "$SCRIPT" >> logs/blink_monitor.log 2>&1 &
 
 # Save PID
 echo $! > .blink_monitor.pid
