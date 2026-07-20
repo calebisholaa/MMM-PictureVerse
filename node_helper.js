@@ -30,8 +30,11 @@ module.exports = NodeHelper.create({
     
     // Run initial cleanup
     this.cleanupBlinkImages();
+
+    // Set up the remote reboot/update page
+    this.setupRemote();
   },
-  
+
   stop() {
     // Clear all intervals when module stops
     if (this.dropboxInterval) {
@@ -52,7 +55,107 @@ module.exports = NodeHelper.create({
       this.picturesWatcher.close();
     }
   },
-  
+
+  // Sets up a token-protected page at /pictureverse/remote with Reboot
+  // and Update buttons, served from MagicMirror's own web server.
+  setupRemote() {
+    if (!this.expressApp) {
+      console.error("[MMM-PictureVerse] No expressApp available, remote control disabled");
+      return;
+    }
+
+    const crypto = require("crypto");
+    const tokenPath = path.join(__dirname, ".remote_token");
+
+    if (fs.existsSync(tokenPath)) {
+      this.remoteToken = fs.readFileSync(tokenPath, "utf8").trim();
+    } else {
+      this.remoteToken = crypto.randomBytes(16).toString("hex");
+      fs.writeFileSync(tokenPath, this.remoteToken);
+    }
+
+    console.log(`[MMM-PictureVerse] Remote control: http://<pi-ip-address>:8080/pictureverse/remote?token=${this.remoteToken}`);
+
+    const checkToken = (req) => {
+      const provided = Buffer.from(String(req.query.token || ""));
+      const expected = Buffer.from(this.remoteToken);
+      return provided.length === expected.length && crypto.timingSafeEqual(provided, expected);
+    };
+
+    this.expressApp.get("/pictureverse/remote", (req, res) => {
+      if (!checkToken(req)) {
+        res.status(403).send("Forbidden");
+        return;
+      }
+      res.send(this.renderRemotePage(req.query.token));
+    });
+
+    this.expressApp.post("/pictureverse/remote/reboot", (req, res) => {
+      if (!checkToken(req)) {
+        res.status(403).send("Forbidden");
+        return;
+      }
+      res.send("Rebooting...");
+      setTimeout(() => exec("sudo reboot"), 500);
+    });
+
+    this.expressApp.post("/pictureverse/remote/update", (req, res) => {
+      if (!checkToken(req)) {
+        res.status(403).send("Forbidden");
+        return;
+      }
+      res.send("Update started, the mirror will restart in a minute or two.");
+
+      const cmd = `cd "${__dirname}" && git pull && npm install && pm2 restart all`;
+      exec(cmd, { timeout: 5 * 60 * 1000 }, (error, stdout, stderr) => {
+        if (error) {
+          console.error(`[MMM-PictureVerse] Remote update failed: ${error.message}`);
+          console.error(stderr);
+        } else {
+          console.log("[MMM-PictureVerse] Remote update output:", stdout);
+        }
+      });
+    });
+  },
+
+  renderRemotePage(token) {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mirror Remote</title>
+  <style>
+    body { font-family: sans-serif; background: #111; color: #eee; display: flex; flex-direction: column;
+           align-items: center; justify-content: center; height: 100vh; margin: 0; gap: 1rem; }
+    button { font-size: 1.2rem; padding: 1rem 2rem; border-radius: 8px; border: none; cursor: pointer; }
+    #update { background: #2980b9; color: white; }
+    #reboot { background: #c0392b; color: white; }
+    #status { min-height: 1.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Mirror Remote</h1>
+  <button id="update">Update</button>
+  <button id="reboot">Reboot</button>
+  <div id="status"></div>
+  <script>
+    const token = ${JSON.stringify(String(token || ""))};
+    const status = document.getElementById("status");
+    function run(action, confirmMsg) {
+      if (confirmMsg && !confirm(confirmMsg)) return;
+      status.textContent = "Working...";
+      fetch("/pictureverse/remote/" + action + "?token=" + encodeURIComponent(token), { method: "POST" })
+        .then(r => r.text())
+        .then(t => status.textContent = t)
+        .catch(e => status.textContent = "Error: " + e);
+    }
+    document.getElementById("update").onclick = () => run("update");
+    document.getElementById("reboot").onclick = () => run("reboot", "Reboot the mirror now?");
+  </script>
+</body>
+</html>`;
+  },
+
   startBlinkMonitor() {
     // Path to the run script
     const runScript = path.join(__dirname, "run-monitor.sh");

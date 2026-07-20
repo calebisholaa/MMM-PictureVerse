@@ -43,6 +43,12 @@ python/Pictures/*
 logs
 *.log
 
+# Remote control token
+.remote_token
+
+# PID files
+*.pid
+
 # OS specific files
 .DS_Store
 .DS_Store?

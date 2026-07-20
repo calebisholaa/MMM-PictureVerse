@@ -317,6 +317,55 @@ npm run cleanup-media
 
 This runs `python/CleanUpMedia.py`, which applies the same per-camera, per-hour retention policy and logs to `logs/blink_cleanup.log`.
 
+### Network Keep-Alive
+
+If your mirror's WiFi tends to drop after being idle, `keep-alive.sh` pings the network gateway on an interval so the connection stays active. It logs to `logs/keep-alive.log`.
+
+```bash
+# Start the keep-alive pinger in the background
+npm run start-keep-alive
+
+# Stop it
+npm run stop-keep-alive
+```
+
+By default it pings the router every 60 seconds. Both are configurable via environment variables:
+
+```bash
+KEEP_ALIVE_INTERVAL=30 KEEP_ALIVE_TARGET=1.1.1.1 npm run start-keep-alive
+```
+
+To have it start automatically on boot, add a `@reboot` entry to the Pi's crontab:
+
+```bash
+crontab -e
+# Add this line (adjust the path to your install location):
+@reboot cd ~/MagicMirror/modules/MMM-PictureVerse && npm run start-keep-alive
+```
+
+### Remote Control (Reboot / Update)
+
+The module serves a small password-protected page for rebooting the Pi or pulling the latest version of the module without needing to SSH in. It reuses MagicMirror's own web server, so there's nothing extra to run.
+
+On first start, a random token is generated and saved to `.remote_token` in the module folder, and the full URL is printed to the MagicMirror log (`pm2 logs` or your terminal):
+
+```
+[MMM-PictureVerse] Remote control: http://<pi-ip-address>:8080/pictureverse/remote?token=<token>
+```
+
+Open that URL from your phone or laptop (same WiFi network as the mirror) and bookmark it. It has two buttons:
+
+- **Update** — runs `git pull`, `npm install`, then `pm2 restart all` to pick up the new code.
+- **Reboot** — reboots the Pi (`sudo reboot`).
+
+If the reboot button fails with a permissions error, the user running MagicMirror needs passwordless sudo for `reboot`. Add a sudoers rule (replace `pi` with your username):
+
+```bash
+echo "pi ALL=(ALL) NOPASSWD: /sbin/reboot, /usr/sbin/reboot" | sudo tee /etc/sudoers.d/mirror-reboot
+```
+
+The token is stored in `.remote_token` (git-ignored). Delete it and restart MagicMirror to generate a new one — anyone with the old link will be locked out.
+
 ### Updating OAuth2 Credentials
 
 If you need to switch Dropbox accounts or your app credentials have changed:

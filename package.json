@@ -11,7 +11,9 @@
     "postinstall": "./setup-venv.sh",
     "start-monitor": "./run-monitor.sh",
     "start-blink-monitor": "./start-blink-monitor.sh",
-    "stop-monitor": "pkill -f \"python/BlinkMonitor.py\" || true"
+    "stop-monitor": "pkill -f \"python/BlinkMonitor.py\" || true",
+    "start-keep-alive": "./start-keep-alive.sh",
+    "stop-keep-alive": "./stop-keep-alive.sh"
   },
   "dependencies": {
     "chokidar": "^3.5.3"
